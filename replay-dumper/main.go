@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"flag"
+	"fmt"
 	"log"
 	"os"
 	"time"
@@ -88,15 +89,16 @@ func readNetMessages(f *os.File) {
 				start := noerr(NETreadU8(r))
 				building := noerr(NETreadU32(r))
 				topic := noerr(NETreadU32(r))
-				log.Printf("(%8d % 9s) %s: player %d (%d) start %d building %d topic %d", gameTime, gameTimeToString(gameTime), msgid, player, pPlayer, start, building, topic)
+				topicname := fmt.Sprint(topic)
+				if topic > 0 && int(topic) < len(aResearch) {
+					topicname = aResearch[topic].Name
+				} else {
+					log.Printf("Topic overflow or underflow, topic %d total %d", topic, len(aResearch))
+				}
+				log.Printf("(%8d % 9s) %s: player %d (%d) start %d building %d topic %s", gameTime, gameTimeToString(gameTime), msgid, player, pPlayer, start, building, topicname)
 				if r.Len() != 0 {
 					spew.Dump(data)
 					log.Printf("Did not parsed %d bytes", r.Len())
-				}
-				if topic > 0 && int(topic) < len(aResearch) {
-					log.Printf("Topic: %s", aResearch[topic])
-				} else {
-					log.Printf("Topic overflow or underflow, topic %d total %d", topic, len(aResearch))
 				}
 			}
 		}
