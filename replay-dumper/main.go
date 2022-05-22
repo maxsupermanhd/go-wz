@@ -13,12 +13,15 @@ import (
 )
 
 var (
-	filepath  = flag.String("f", "./replay.wzrp", "Path to replay to dump")
-	statsdir  = flag.String("stats", "./data/mp/stats/", "Path to stats directory")
-	aResearch = []sResearch{}
+	filepath       = flag.String("f", "./replay.wzrp", "Path to replay to dump")
+	statsdir       = flag.String("stats", "./data/mp/stats/", "Path to stats directory")
+	aResearch      = []sResearch{}
+	netPlayPlayers = []NetplayPlayers{}
+	namePadLength  = 2
 )
 
 func main() {
+	log.SetFlags(0)
 	log.Println("Replay dumper starting up...")
 	flag.Parse()
 
@@ -72,7 +75,8 @@ func readNetMessages(f *os.File) {
 			break
 		}
 		data := noerr(readBytes(f, int(l)))
-		msgid, ok := netMessageType[pType]
+		// msgid, ok := netMessageType[pType]
+		_, ok := netMessageType[pType]
 		if !ok {
 			log.Printf("Unknown message type: %d", pType)
 		} else {
@@ -95,7 +99,17 @@ func readNetMessages(f *os.File) {
 				} else {
 					log.Printf("Topic overflow or underflow, topic %d total %d", topic, len(aResearch))
 				}
-				log.Printf("(%8d % 9s) %s: player %d (%d) start %d building %d topic %s", gameTime, gameTimeToString(gameTime), msgid, player, pPlayer, start, building, topicname)
+				if player != pPlayer {
+					log.Printf("Player missmatch in GAME_RESEARCHSTATUS (%d netmessage %d packet)", pPlayer, player)
+				}
+				action := "picked "
+				if start == 0 {
+					action = "dropped"
+				}
+				log.Printf("(%7d % 9s) [% *s] %s on building %d topic %s",
+					gameTime, gameTimeToString(gameTime),
+					-namePadLength, netPlayPlayers[player].Name,
+					action, building, topicname)
 				if r.Len() != 0 {
 					spew.Dump(data)
 					log.Printf("Did not parsed %d bytes", r.Len())
@@ -133,8 +147,12 @@ func readSettings(f *os.File) {
 	for i, p := range s.GameOptions.NetplayPlayers {
 		if p.Allocated {
 			log.Printf("pos %2d inx %2d name [%s]", p.Position, i, p.Name)
+			if namePadLength < len(p.Name) {
+				namePadLength = len(p.Name)
+			}
 		}
 	}
+	netPlayPlayers = s.GameOptions.NetplayPlayers
 }
 
 func readMagic(f *os.File) {
