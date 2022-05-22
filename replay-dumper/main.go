@@ -6,15 +6,23 @@ import (
 	"flag"
 	"log"
 	"os"
+	"time"
+
+	"github.com/davecgh/go-spew/spew"
 )
 
 var (
-	filepath = flag.String("f", "./replay.wzrp", "Path to replay to dump")
+	filepath  = flag.String("f", "./replay.wzrp", "Path to replay to dump")
+	statsdir  = flag.String("stats", "./data/mp/stats/", "Path to stats directory")
+	aResearch = []sResearch{}
 )
 
 func main() {
 	log.Println("Replay dumper starting up...")
 	flag.Parse()
+
+	log.Printf("Loading research from [%s]...", *statsdir)
+	aResearch = noerr(loadResearchData(*statsdir))
 
 	log.Printf("Opening file [%s]...", *filepath)
 	f := noerr(os.Open(*filepath))
@@ -37,6 +45,7 @@ func main() {
 
 func readNetMessages(f *os.File) {
 	total := 0
+	gameTime := uint32(0)
 	for {
 		pPlayer, _ := noerr2(readByte(f))
 		pType, _ := noerr2(readByte(f))
@@ -66,19 +75,30 @@ func readNetMessages(f *os.File) {
 		if !ok {
 			log.Printf("Unknown message type: %d", pType)
 		} else {
-			log.Printf("Message from %2d %-28s len %6d", pPlayer, msgid, len(data))
-			// r := bytes.NewReader(data)
-			// switch pType {
-			// case GAME_RESEARCHSTATUS:
-			// 	msg := struct {
-			// 		player   uint8
-			// 		start    bool
-			// 		building uint32
-			// 		topic    uint32
-			// 	}{}
-			// 	must(binary.Read(r, binary.BigEndian, &msg))
-			// 	spew.Dump(msg)
-			// }
+			r := bytes.NewReader(data)
+			// log.Printf("Message from %2d %-28s len %3d %3d", pPlayer, msgid, len(data), l)
+			switch pType {
+			case GAME_GAME_TIME:
+				_ = noerr(NETreadU32(r))
+				gameTime = noerr(NETreadU32(r))
+				_ = noerr(NETreadU16(r))
+				_ = noerr(NETreadU16(r))
+			case GAME_RESEARCHSTATUS:
+				player := noerr(NETreadU8(r))
+				start := noerr(NETreadU8(r))
+				building := noerr(NETreadU32(r))
+				topic := noerr(NETreadU32(r))
+				log.Printf("(%8d % 9s) %s: player %d (%d) start %d building %d topic %d", gameTime, gameTimeToString(gameTime), msgid, player, pPlayer, start, building, topic)
+				if r.Len() != 0 {
+					spew.Dump(data)
+					log.Printf("Did not parsed %d bytes", r.Len())
+				}
+				if topic > 0 && int(topic) < len(aResearch) {
+					log.Printf("Topic: %s", aResearch[topic])
+				} else {
+					log.Printf("Topic overflow or underflow, topic %d total %d", topic, len(aResearch))
+				}
+			}
 		}
 		total++
 	}
@@ -99,14 +119,20 @@ func readEmbeddedMap(f *os.File) {
 }
 
 func readSettings(f *os.File) {
-	len := noerr(readUBE32(f))
-	b := noerr(readBytes(f, int(len)))
+	b := noerr(readBytes(f, int(noerr(readUBE32(f)))))
 	var s ReplaySettings
 	must(json.Unmarshal(b, &s))
 	if s.ReplayFormatVer != 2 {
 		log.Printf("Replay format version is odd: %d, should be 2", s.ReplayFormatVer)
 	}
 	log.Printf("Replay netcode %d.%d", s.Major, s.Minor)
+	log.Printf("Replay version %s", s.GameOptions.VersionString)
+	log.Println("Players:")
+	for i, p := range s.GameOptions.NetplayPlayers {
+		if p.Allocated {
+			log.Printf("pos %2d inx %2d name [%s]", p.Position, i, p.Name)
+		}
+	}
 }
 
 func readMagic(f *os.File) {
@@ -118,4 +144,8 @@ func readMagic(f *os.File) {
 		log.Fatalf("Magic is not `WZRP`! Got [%4s]", magic)
 	}
 	log.Printf("Magic is valid")
+}
+
+func gameTimeToString(gt uint32) string {
+	return (time.Duration(int(gt/1000)) * time.Second).String()
 }

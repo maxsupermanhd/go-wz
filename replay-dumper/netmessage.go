@@ -1,5 +1,10 @@
 package main
 
+import (
+	"encoding/binary"
+	"io"
+)
+
 const (
 	// Net-related messages.
 	NET_MIN_TYPE                 byte = iota + 33 ///< Minimum-1 valid NET_ type, *MUST* be first.
@@ -141,4 +146,27 @@ var netMessageType = map[byte]string{
 	GAME_DEBUG_FINISH_RESEARCH:   "GAME_DEBUG_FINISH_RESEARCH",
 	GAME_MAX_TYPE:                "GAME_MAX_TYPE",
 	REPLAY_ENDED:                 "REPLAY_ENDED",
+}
+
+func NETreadU8(r io.Reader) (ret uint8, err error) {
+	err = binary.Read(r, binary.BigEndian, &ret)
+	return
+}
+
+func NETreadU16(r io.Reader) (ret uint16, err error) {
+	err = binary.Read(r, binary.BigEndian, &ret)
+	return
+}
+
+func NETreadU32(r io.Reader) (ret uint32, err error) {
+	end := false
+	for n := uint(0); !end; n++ {
+		b := byte(0)
+		err = binary.Read(r, binary.BigEndian, &b)
+		if err != nil {
+			return 0, err
+		}
+		end, ret = decode_uint32_t(b, ret, n)
+	}
+	return
 }

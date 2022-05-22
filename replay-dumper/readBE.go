@@ -54,6 +54,7 @@ func decode_uint32_t(b uint8, v uint32, n uint) (bool, uint32) {
 	m := table_uint32_t_m[n]
 
 	isLastByte := uint32(b) < 256-a
+	// log.Printf("Decoding byte %02x (%2d) is last %t", b, n, isLastByte)
 	if isLastByte {
 		v += uint32(b) * m
 	} else {
