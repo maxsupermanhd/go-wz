@@ -15,6 +15,7 @@ import (
 var (
 	filepath       = flag.String("f", "./replay.wzrp", "Path to replay to dump")
 	statsdir       = flag.String("stats", "./data/mp/stats/", "Path to stats directory")
+	mapout         = flag.String("mapout", "./map.wz", "Path to save embedded map. Use - to disable")
 	aResearch      = []sResearch{}
 	netPlayPlayers = []NetplayPlayers{}
 	namePadLength  = 2
@@ -128,7 +129,8 @@ func readEmbeddedMap(f *os.File) {
 	len := noerr(readUBE32(f))
 	if len != 0 {
 		log.Printf("Embedded map data len %d", len)
-		_ = noerr(readBytes(f, int(len)))
+		b := noerr(readBytes(f, int(len)))
+		must(os.WriteFile(*mapout, b, 0644))
 	} else {
 		log.Println("Embedded map data is empty")
 	}
