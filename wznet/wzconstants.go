@@ -1,9 +1,4 @@
-package main
-
-import (
-	"encoding/binary"
-	"io"
-)
+package wznet
 
 const (
 	// Net-related messages.
@@ -82,7 +77,7 @@ const (
 	REPLAY_ENDED ///< A special message for signifying the end of the replay
 )
 
-var netMessageType = map[byte]string{
+var NetMessageType = map[byte]string{
 	NET_MIN_TYPE:                 "NET_MIN_TYPE",
 	NET_PING:                     "NET_PING",
 	NET_PLAYER_STATS:             "NET_PLAYER_STATS",
@@ -148,25 +143,49 @@ var netMessageType = map[byte]string{
 	REPLAY_ENDED:                 "REPLAY_ENDED",
 }
 
-func NETreadU8(r io.Reader) (ret uint8, err error) {
-	err = binary.Read(r, binary.BigEndian, &ret)
-	return
-}
+const (
+	DroidOrderSybTypeObj = iota
+	DroidOrderSybTypeLoc
+	DroidOrderSybTypeSec
+)
 
-func NETreadU16(r io.Reader) (ret uint16, err error) {
-	err = binary.Read(r, binary.BigEndian, &ret)
-	return
-}
-
-func NETreadU32(r io.Reader) (ret uint32, err error) {
-	end := false
-	for n := uint(0); !end; n++ {
-		b := byte(0)
-		err = binary.Read(r, binary.BigEndian, &b)
-		if err != nil {
-			return 0, err
-		}
-		end, ret = decode_uint32_t(b, ret, n)
-	}
-	return
-}
+const (
+	DORDER_NONE             = iota /**< no order set. */
+	DORDER_STOP                    /**< stop the current order. */
+	DORDER_MOVE                    /**< 2 - move to a location. */
+	DORDER_ATTACK                  /**< attack an enemy. */
+	DORDER_BUILD                   /**< 4 - build a structure. */
+	DORDER_HELPBUILD               /**< help to build a structure. */
+	DORDER_LINEBUILD               /**< 6 - build a number of structures in a row (walls + bridges). */
+	DORDER_DEMOLISH                /**< demolish a structure. */
+	DORDER_REPAIR                  /**< 8 - repair a structure. */
+	DORDER_OBSERVE                 /**< keep a target in sensor view. */
+	DORDER_FIRESUPPORT             /**< 10 - attack whatever the linked sensor droid attacks. */
+	DORDER_UNUSED_4                /**< unused */
+	DORDER_UNUSED_2                /**< unused */
+	DORDER_RTB                     /**< return to base. */
+	DORDER_RTR                     /**< 14 - return to repair at any repair facility*/
+	DORDER_UNUSED_5                /**< unused */
+	DORDER_EMBARK                  /**< 16 - board a transporter. */
+	DORDER_DISEMBARK               /**< get off a transporter. */
+	DORDER_ATTACKTARGET            /**< 18 - a suggestion to attack something i.e. the target was chosen because the droid could see it. */
+	DORDER_COMMANDERSUPPORT        /**< Assigns droid to the target commander. */
+	DORDER_BUILDMODULE             /**< 20 - build a module (power, research or factory). */
+	DORDER_RECYCLE                 /**< return to factory to be recycled. */
+	DORDER_TRANSPORTOUT            /**< 22 - offworld transporter order. */
+	DORDER_TRANSPORTIN             /**< onworld transporter order. */
+	DORDER_TRANSPORTRETURN         /**< 24 - transporter return after unloading. */
+	DORDER_GUARD                   /**< guard a structure. */
+	DORDER_DROIDREPAIR             /**< 26 - repair a droid. */
+	DORDER_RESTORE                 /**< restore resistance points for a structure. */
+	DORDER_SCOUT                   /**< 28 - same as move, but stop if an enemy is seen. */
+	DORDER_UNUSED_3                /**< unused */
+	DORDER_UNUSED                  /**< unused */
+	DORDER_PATROL                  /**< move between two way points. */
+	DORDER_REARM                   /**< 32 - order a vtol to rearming pad. */
+	DORDER_RECOVER                 /**< pick up an artifact. */
+	DORDER_UNUSED_6                /**< unused */
+	DORDER_RTR_SPECIFIED           /**< return to repair at a specified repair center. */
+	DORDER_CIRCLE           = 40   /**< circles target location and engage. */
+	DORDER_HOLD                    /**< hold position until given next order. */
+)

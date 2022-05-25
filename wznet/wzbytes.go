@@ -1,19 +1,12 @@
-package main
+package wznet
 
 import (
 	"encoding/binary"
+	"io"
 	"log"
-	"os"
 )
 
-// type LengthInteger interface {
-// 	~int | ~int8 | ~int16 | ~int32 | ~int64
-// 	~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64
-// }
-
-// func readBEBytes[L LengthInteger](f *os.File, n L) ([]byte, error) {
-
-func readBytes(f *os.File, n int) ([]byte, error) {
+func ReadBytes(f io.Reader, n int) ([]byte, error) {
 	if n <= 0 {
 		if n < 0 {
 			log.Printf("ReadBEBytes called with negative length! (%d)", n)
@@ -30,7 +23,7 @@ func readBytes(f *os.File, n int) ([]byte, error) {
 	}
 	return b, err
 }
-func readByte(f *os.File) (byte, bool, error) {
+func ReadByte(f io.Reader) (byte, bool, error) {
 	b := make([]byte, 1)
 	r, err := f.Read(b)
 	if err != nil {
@@ -42,12 +35,12 @@ func readByte(f *os.File) (byte, bool, error) {
 	return b[0], true, err
 }
 
-func readUBE32(f *os.File) (uint32, error) {
-	b, err := readBytes(f, 4)
+func ReadUBE32(f io.Reader) (uint32, error) {
+	b, err := ReadBytes(f, 4)
 	return binary.BigEndian.Uint32(b[0:]), err
 }
 
-func decode_uint32_t(b uint8, v uint32, n uint) (bool, uint32) {
+func Decode_uint32_t(b uint8, v uint32, n uint) (bool, uint32) {
 	table_uint32_t_a := []uint32{78, 95, 32, 70, 0}
 	table_uint32_t_m := []uint32{1, 78, 7410, 237120, 16598400}
 	a := table_uint32_t_a[n]
@@ -61,4 +54,39 @@ func decode_uint32_t(b uint8, v uint32, n uint) (bool, uint32) {
 		v += (256 - a + 255 - uint32(b)) * m
 	}
 	return isLastByte, v
+}
+
+func NETreadU8(r io.Reader) (ret uint8, err error) {
+	err = binary.Read(r, binary.BigEndian, &ret)
+	return
+}
+
+func NETreadU16(r io.Reader) (ret uint16, err error) {
+	err = binary.Read(r, binary.BigEndian, &ret)
+	return
+}
+
+func NETreadU32(r io.Reader) (ret uint32, err error) {
+	end := false
+	for n := uint(0); !end; n++ {
+		b := byte(0)
+		err = binary.Read(r, binary.BigEndian, &b)
+		if err != nil {
+			return 0, err
+		}
+		end, ret = Decode_uint32_t(b, ret, n)
+	}
+	return
+}
+
+func NETreadS32(r io.Reader) (ret int32, err error) {
+	v, err := NETreadU32(r)
+	if err != nil {
+		return 0, err
+	}
+	if v%2 == 0 {
+		return int32(v / 2), nil
+	} else {
+		return -(int32(v/2) - 1), nil
+	}
 }

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/maxsupermanhd/go-wz/wznet"
 )
 
 var (
@@ -52,16 +53,16 @@ func readNetMessages(f *os.File) {
 	total := 0
 	gameTime := uint32(0)
 	for {
-		pPlayer, _ := noerr2(readByte(f))
-		pType, _ := noerr2(readByte(f))
+		pPlayer, _ := noerr2(wznet.ReadByte(f))
+		pType, _ := noerr2(wznet.ReadByte(f))
 		l := uint32(0)
 		success := false
 		b := byte(0)
 		n := uint(0)
 		for {
-			b, success = noerr2(readByte(f))
+			b, success = noerr2(wznet.ReadByte(f))
 			r := false
-			r, l = decode_uint32_t(b, l, n)
+			r, l = wznet.Decode_uint32_t(b, l, n)
 			n++
 			if r {
 				break
@@ -71,29 +72,62 @@ func readNetMessages(f *os.File) {
 			log.Printf("Not success, len %d", l)
 			break
 		}
-		if pType == REPLAY_ENDED {
+		if pType == wznet.REPLAY_ENDED {
 			log.Printf("End of net messages. (%d total)", total)
 			break
 		}
-		data := noerr(readBytes(f, int(l)))
-		// msgid, ok := netMessageType[pType]
-		_, ok := netMessageType[pType]
+		data := noerr(wznet.ReadBytes(f, int(l)))
+		msgid, ok := wznet.NetMessageType[pType]
 		if !ok {
 			log.Printf("Unknown message type: %d", pType)
 		} else {
 			r := bytes.NewReader(data)
 			// log.Printf("Message from %2d %-28s len %3d %3d", pPlayer, msgid, len(data), l)
 			switch pType {
-			case GAME_GAME_TIME:
-				_ = noerr(NETreadU32(r))
-				gameTime = noerr(NETreadU32(r))
-				_ = noerr(NETreadU16(r))
-				_ = noerr(NETreadU16(r))
-			case GAME_RESEARCHSTATUS:
-				player := noerr(NETreadU8(r))
-				start := noerr(NETreadU8(r))
-				building := noerr(NETreadU32(r))
-				topic := noerr(NETreadU32(r))
+			case wznet.GAME_GAME_TIME:
+				_ = noerr(wznet.NETreadU32(r))
+				gameTime = noerr(wznet.NETreadU32(r))
+				_ = noerr(wznet.NETreadU16(r))
+				_ = noerr(wznet.NETreadU16(r))
+			case wznet.GAME_DROIDINFO:
+				// player := noerr(wznet.NETreadU8(r))
+				// if player != pPlayer {
+				// 	log.Printf("Player missmatch in %s (%d netmessage %d packet)", msgid, pPlayer, player)
+				// }
+				// subtype := noerr(wznet.NETreadU32(r))
+				// switch subtype {
+				// case DroidOrderSybTypeObj:
+				// 	fallthrough
+				// case DroidOrderSybTypeLoc:
+				// 	order := noerr(wznet.NETreadU32(r))
+				// 	if subtype == DroidOrderSybTypeObj {
+				// 		_ = noerr(wznet.NETreadU32(r)) // destID
+				// 		_ = noerr(wznet.NETreadU32(r)) // destType
+				// 	} else {
+				// 		_ = noerr(wznet.NETreadS32(r))
+				// 		_ = noerr(wznet.NETreadS32(r))
+				// 	}
+				// 	if order == DORDER_BUILD || order == DORDER_LINEBUILD {
+				// 		_ = noerr(wznet.NETreadU32(r)) // structref
+				// 		_ = noerr(wznet.NETreadU16(r)) // direction
+				// 	}
+				// 	if order == DORDER_LINEBUILD {
+				// 		_ = noerr(wznet.NETreadS32(r)) // pos2 x
+				// 		_ = noerr(wznet.NETreadS32(r)) // pos2 y
+				// 	}
+				// 	if order == DORDER_BUILDMODULE {
+				// 		_ = noerr(wznet.NETreadU32(r)) // index
+				// 	}
+				// 	_ = noerr(wznet.NETreadU8(r)) // add
+				// case DroidOrderSybTypeSec:
+				// 	_ = noerr(wznet.NETreadU32(r)) // sec order
+				// 	_ = noerr(wznet.NETreadU32(r)) // sec state
+				// }
+			case wznet.GAME_RESEARCHSTATUS:
+				player := noerr(wznet.NETreadU8(r))
+				start := noerr(wznet.NETreadU8(r))
+				building := noerr(wznet.NETreadU32(r))
+				topic := noerr(wznet.NETreadU32(r))
 				topicname := fmt.Sprint(topic)
 				if topic > 0 && int(topic) < len(aResearch) {
 					topicname = aResearch[topic].Name
@@ -101,7 +135,7 @@ func readNetMessages(f *os.File) {
 					log.Printf("Topic overflow or underflow, topic %d total %d", topic, len(aResearch))
 				}
 				if player != pPlayer {
-					log.Printf("Player missmatch in GAME_RESEARCHSTATUS (%d netmessage %d packet)", pPlayer, player)
+					log.Printf("Player missmatch in %s (%d netmessage %d packet)", msgid, pPlayer, player)
 				}
 				action := "picked "
 				if start == 0 {
@@ -122,14 +156,14 @@ func readNetMessages(f *os.File) {
 }
 
 func readEmbeddedMap(f *os.File) {
-	dv := noerr(readUBE32(f))
+	dv := noerr(wznet.ReadUBE32(f))
 	if dv != 1 {
 		log.Printf("Embedded map data version is odd: %d, should be 1", dv)
 	}
-	len := noerr(readUBE32(f))
+	len := noerr(wznet.ReadUBE32(f))
 	if len != 0 {
 		log.Printf("Embedded map data len %d", len)
-		b := noerr(readBytes(f, int(len)))
+		b := noerr(wznet.ReadBytes(f, int(len)))
 		must(os.WriteFile(*mapout, b, 0644))
 	} else {
 		log.Println("Embedded map data is empty")
@@ -137,7 +171,7 @@ func readEmbeddedMap(f *os.File) {
 }
 
 func readSettings(f *os.File) {
-	b := noerr(readBytes(f, int(noerr(readUBE32(f)))))
+	b := noerr(wznet.ReadBytes(f, int(noerr(wznet.ReadUBE32(f)))))
 	var s ReplaySettings
 	must(json.Unmarshal(b, &s))
 	if s.ReplayFormatVer != 2 {
