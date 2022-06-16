@@ -129,7 +129,7 @@ func readNetMessages(f *os.File) {
 				building := noerr(wznet.NETreadU32(r))
 				topic := noerr(wznet.NETreadU32(r))
 				topicname := fmt.Sprint(topic)
-				if topic > 0 && int(topic) < len(aResearch) {
+				if int(topic) < len(aResearch) {
 					topicname = aResearch[topic].Name
 				} else {
 					log.Printf("Topic overflow or underflow, topic %d total %d", topic, len(aResearch))
