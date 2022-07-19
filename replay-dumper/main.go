@@ -11,6 +11,10 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/maxsupermanhd/go-wz/wznet"
+
+	"github.com/go-echarts/go-echarts/v2/charts"
+	"github.com/go-echarts/go-echarts/v2/opts"
+	"github.com/go-echarts/go-echarts/v2/types"
 )
 
 var (
@@ -52,6 +56,18 @@ func main() {
 func readNetMessages(f *os.File) {
 	total := 0
 	gameTime := uint32(0)
+	tdata := make([]opts.LineData, 0)
+	ldata := make([]opts.LineData, 0)
+	labels := []string{}
+	line := charts.NewLine()
+	line.SetGlobalOptions(
+		charts.WithInitializationOpts(opts.Initialization{Theme: types.ThemeWesteros}),
+		charts.WithTitleOpts(opts.Title{
+			Title:    "Line example in Westeros theme",
+			Subtitle: "Line chart rendered by the http server this time",
+		}),
+		charts.WithDataZoomOpts(opts.DataZoom{Type: "inside"}))
+
 	for {
 		pPlayer, _ := noerr2(wznet.ReadByte(f))
 		pType, _ := noerr2(wznet.ReadByte(f))
@@ -78,6 +94,11 @@ func readNetMessages(f *os.File) {
 		}
 		data := noerr(wznet.ReadBytes(f, int(l)))
 		msgid, ok := wznet.NetMessageType[pType]
+		rprint := func(f string, v ...interface{}) {
+			vv := []interface{}{gameTime, gameTimeToString(gameTime), -namePadLength, netPlayPlayers[pPlayer].Name}
+			vv = append(vv, v...)
+			log.Printf("(%7d % 9s) [% *s] "+f, vv...)
+		}
 		if !ok {
 			log.Printf("Unknown message type: %d", pType)
 		} else {
@@ -85,10 +106,70 @@ func readNetMessages(f *os.File) {
 			// log.Printf("Message from %2d %-28s len %3d %3d", pPlayer, msgid, len(data), l)
 			switch pType {
 			case wznet.GAME_GAME_TIME:
-				_ = noerr(wznet.NETreadU32(r))
+				latencyTicks := noerr(wznet.NETreadU32(r))
 				gameTime = noerr(wznet.NETreadU32(r))
 				_ = noerr(wznet.NETreadU16(r))
-				_ = noerr(wznet.NETreadU16(r))
+				wantedLatency := noerr(wznet.NETreadU16(r))
+				tdata = append(tdata, opts.LineData{Value: latencyTicks})
+				ldata = append(ldata, opts.LineData{Value: wantedLatency})
+				labels = append(labels, fmt.Sprint(gameTime))
+			case wznet.GAME_DEBUG_MODE:
+				enable := noerr(wznet.NETreadU8(r))
+				rprint("Debug mode request %v", enable)
+			case wznet.GAME_DEBUG_ADD_STRUCTURE:
+				fallthrough
+			case wznet.GAME_DEBUG_ADD_DROID:
+				fallthrough
+			case wznet.GAME_DEBUG_ADD_FEATURE:
+				fallthrough
+			case wznet.GAME_DEBUG_REMOVE_DROID:
+				fallthrough
+			case wznet.GAME_DEBUG_REMOVE_FEATURE:
+				fallthrough
+			case wznet.GAME_DEBUG_REMOVE_STRUCTURE:
+				fallthrough
+			case wznet.GAME_DEBUG_FINISH_RESEARCH:
+				rprint("DEBUG %s", msgid)
+			case wznet.GAME_STRUCTUREINFO:
+				player := noerr(wznet.NETreadU8(r))
+				structID := noerr(wznet.NETreadU32(r))
+				structInfo := noerr(wznet.NETreadU8(r))
+				if structInfo == 0 {
+					name := noerr(wznet.NETstring(r))
+					droidID := noerr(wznet.NETreadU32(r))
+					droidType := noerr(wznet.NETreadS32(r))
+					droidBody := noerr(wznet.NETreadU8(r))
+					droidBrain := noerr(wznet.NETreadU8(r))
+					droidPropulsion := noerr(wznet.NETreadU8(r))
+					droidRepairunit := noerr(wznet.NETreadU8(r))
+					droidEcm := noerr(wznet.NETreadU8(r))
+					droidSensor := noerr(wznet.NETreadU8(r))
+					droidConstruct := noerr(wznet.NETreadU8(r))
+					droidNumWeapons := noerr(wznet.NETreadU8(r))
+					droidWeapons := []uint32{}
+					for i := uint8(0); i < droidNumWeapons; i++ {
+						droidWeapons = append(droidWeapons, noerr(wznet.NETreadU32(r)))
+					}
+					rprint(`GAME_STRUCTUREINFO player %v struct %v info %v name [%v]
+id %v
+type %v
+body %v
+brain %v
+prop %v
+rep %v
+ecm %v
+sensor %v
+construct %v
+weapons %v`, player, structID, structInfo, name, droidID,
+						droidType,
+						droidBody,
+						droidBrain,
+						droidPropulsion,
+						droidRepairunit,
+						droidEcm,
+						droidSensor,
+						droidConstruct, droidWeapons)
+				}
 			case wznet.GAME_DROIDINFO:
 				// player := noerr(wznet.NETreadU8(r))
 				// if player != pPlayer {
@@ -141,10 +222,7 @@ func readNetMessages(f *os.File) {
 				if start == 0 {
 					action = "dropped"
 				}
-				log.Printf("(%7d % 9s) [% *s] %s on building %d topic %s",
-					gameTime, gameTimeToString(gameTime),
-					-namePadLength, netPlayPlayers[player].Name,
-					action, building, topicname)
+				rprint("%s on building %d topic %s", action, building, topicname)
 				if r.Len() != 0 {
 					spew.Dump(data)
 					log.Printf("Did not parsed %d bytes", r.Len())
@@ -153,6 +231,13 @@ func readNetMessages(f *os.File) {
 		}
 		total++
 	}
+	var buf bytes.Buffer
+	line.SetXAxis(labels).
+		// AddSeries("wantedLatency", ldata).
+		AddSeries("latencyTicks", tdata).
+		SetSeriesOptions(charts.WithLineChartOpts(opts.LineChart{Smooth: true}))
+	line.Render(&buf)
+	must(os.WriteFile("chart.html", buf.Bytes(), 0644))
 }
 
 func readEmbeddedMap(f *os.File) {
@@ -164,7 +249,9 @@ func readEmbeddedMap(f *os.File) {
 	if len != 0 {
 		log.Printf("Embedded map data len %d", len)
 		b := noerr(wznet.ReadBytes(f, int(len)))
-		must(os.WriteFile(*mapout, b, 0644))
+		if *mapout != "-" {
+			must(os.WriteFile(*mapout, b, 0644))
+		}
 	} else {
 		log.Println("Embedded map data is empty")
 	}

@@ -90,3 +90,19 @@ func NETreadS32(r io.Reader) (ret int32, err error) {
 		return -(int32(v/2) - 1), nil
 	}
 }
+
+func NETstring(r io.Reader) (ret string, err error) {
+	ret = ""
+	len, err := NETreadU32(r)
+	if err != nil {
+		return ret, err
+	}
+	for ; len > 0; len-- {
+		c, err := NETreadU16(r)
+		if err != nil {
+			return ret, err
+		}
+		ret += string(rune(c))
+	}
+	return ret, nil
+}
