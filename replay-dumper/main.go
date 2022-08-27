@@ -11,17 +11,13 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/maxsupermanhd/go-wz/wznet"
-
-	"github.com/go-echarts/go-echarts/v2/charts"
-	"github.com/go-echarts/go-echarts/v2/opts"
-	"github.com/go-echarts/go-echarts/v2/types"
 )
 
 var (
 	filepath       = flag.String("f", "./replay.wzrp", "Path to replay to dump")
 	statsdir       = flag.String("stats", "./data/mp/stats/", "Path to stats directory")
 	mapout         = flag.String("mapout", "./map.wz", "Path to save embedded map. Use - to disable")
-	aResearch      = []sResearch{}
+	short          = flag.Bool("short", false, "Do not print out everything")
 	netPlayPlayers = []NetplayPlayers{}
 	namePadLength  = 2
 )
@@ -32,7 +28,7 @@ func main() {
 	flag.Parse()
 
 	log.Printf("Loading research from [%s]...", *statsdir)
-	aResearch = noerr(loadResearchData(*statsdir))
+	must(loadStatsData(*statsdir))
 
 	log.Printf("Opening file [%s]...", *filepath)
 	f := noerr(os.Open(*filepath))
@@ -56,17 +52,10 @@ func main() {
 func readNetMessages(f *os.File) {
 	total := 0
 	gameTime := uint32(0)
-	tdata := make([]opts.LineData, 0)
-	ldata := make([]opts.LineData, 0)
-	labels := []string{}
-	line := charts.NewLine()
-	line.SetGlobalOptions(
-		charts.WithInitializationOpts(opts.Initialization{Theme: types.ThemeWesteros}),
-		charts.WithTitleOpts(opts.Title{
-			Title:    "Line example in Westeros theme",
-			Subtitle: "Line chart rendered by the http server this time",
-		}),
-		charts.WithDataZoomOpts(opts.DataZoom{Type: "inside"}))
+
+	netsizes := map[string]uint64{}
+
+	playersautorepair := map[string]uint32{}
 
 	for {
 		pPlayer, _ := noerr2(wznet.ReadByte(f))
@@ -94,6 +83,12 @@ func readNetMessages(f *os.File) {
 		}
 		data := noerr(wznet.ReadBytes(f, int(l)))
 		msgid, ok := wznet.NetMessageType[pType]
+		size1, ok1 := netsizes[msgid]
+		if ok1 {
+			netsizes[msgid] = size1 + uint64(l)
+		} else {
+			netsizes[msgid] = uint64(l)
+		}
 		rprint := func(f string, v ...interface{}) {
 			vv := []interface{}{gameTime, gameTimeToString(gameTime), -namePadLength, netPlayPlayers[pPlayer].Name}
 			vv = append(vv, v...)
@@ -106,13 +101,10 @@ func readNetMessages(f *os.File) {
 			// log.Printf("Message from %2d %-28s len %3d %3d", pPlayer, msgid, len(data), l)
 			switch pType {
 			case wznet.GAME_GAME_TIME:
-				latencyTicks := noerr(wznet.NETreadU32(r))
+				_ = noerr(wznet.NETreadU32(r)) // latencyTicks :
 				gameTime = noerr(wznet.NETreadU32(r))
-				_ = noerr(wznet.NETreadU16(r))
-				wantedLatency := noerr(wznet.NETreadU16(r))
-				tdata = append(tdata, opts.LineData{Value: latencyTicks})
-				ldata = append(ldata, opts.LineData{Value: wantedLatency})
-				labels = append(labels, fmt.Sprint(gameTime))
+				_ = noerr(wznet.NETreadU16(r)) // crc :
+				_ = noerr(wznet.NETreadU16(r)) // wantedLatency :
 			case wznet.GAME_DEBUG_MODE:
 				enable := noerr(wznet.NETreadU8(r))
 				rprint("Debug mode request %v", enable)
@@ -131,44 +123,46 @@ func readNetMessages(f *os.File) {
 			case wznet.GAME_DEBUG_FINISH_RESEARCH:
 				rprint("DEBUG %s", msgid)
 			case wznet.GAME_STRUCTUREINFO:
-				player := noerr(wznet.NETreadU8(r))
-				structID := noerr(wznet.NETreadU32(r))
+				_ = noerr(wznet.NETreadU8(r)) // player
+				// if player != pPlayer {
+				// 	rprint("Wrong player packet %v", player)
+				// }
+				_ = noerr(wznet.NETreadU32(r)) // structID
 				structInfo := noerr(wznet.NETreadU8(r))
 				if structInfo == 0 {
-					name := noerr(wznet.NETstring(r))
-					droidID := noerr(wznet.NETreadU32(r))
-					droidType := noerr(wznet.NETreadS32(r))
-					droidBody := noerr(wznet.NETreadU8(r))
-					droidBrain := noerr(wznet.NETreadU8(r))
-					droidPropulsion := noerr(wznet.NETreadU8(r))
-					droidRepairunit := noerr(wznet.NETreadU8(r))
-					droidEcm := noerr(wznet.NETreadU8(r))
-					droidSensor := noerr(wznet.NETreadU8(r))
-					droidConstruct := noerr(wznet.NETreadU8(r))
+					droid := DroidDef{
+						noerr(wznet.NETstring(r)),  // droid Name
+						noerr(wznet.NETreadU32(r)), // droid ID
+						noerr(wznet.NETreadS32(r)), // droid Type
+						noerr(wznet.NETreadU8(r)),  // droid Body
+						noerr(wznet.NETreadU8(r)),  // droid Brain
+						noerr(wznet.NETreadU8(r)),  // droid Propulsion
+						noerr(wznet.NETreadU8(r)),  // droid Repairunit
+						noerr(wznet.NETreadU8(r)),  // droid Ecm
+						noerr(wznet.NETreadU8(r)),  // droid Sensor
+						noerr(wznet.NETreadU8(r)),  // droid Construct
+					}
 					droidNumWeapons := noerr(wznet.NETreadU8(r))
 					droidWeapons := []uint32{}
 					for i := uint8(0); i < droidNumWeapons; i++ {
 						droidWeapons = append(droidWeapons, noerr(wznet.NETreadU32(r)))
 					}
-					rprint(`GAME_STRUCTUREINFO player %v struct %v info %v name [%v]
-id %v
-type %v
-body %v
-brain %v
-prop %v
-rep %v
-ecm %v
-sensor %v
-construct %v
-weapons %v`, player, structID, structInfo, name, droidID,
-						droidType,
-						droidBody,
-						droidBrain,
-						droidPropulsion,
-						droidRepairunit,
-						droidEcm,
-						droidSensor,
-						droidConstruct, droidWeapons)
+					if len(droidWeapons) > 2 {
+						rprint("Built droid with more than 2 turrets! %v", droid)
+					}
+					droidTyped := typifyDroid(droid)
+					if droidTyped != nil {
+						// rprint("droid: %v", spew.Sdump(*droidTyped))
+						if illegalmsg := checkDroidIllegal(*droidTyped); illegalmsg != "" {
+							rprint("Illegal droid (%v): %v", illegalmsg, spew.Sdump(*droidTyped))
+						}
+						if droidTyped.Repairunit == "AutoRepair" {
+							_, ok := playersautorepair[netPlayPlayers[pPlayer].Name]
+							if !ok {
+								playersautorepair[netPlayPlayers[pPlayer].Name] = gameTime
+							}
+						}
+					}
 				}
 			case wznet.GAME_DROIDINFO:
 				// player := noerr(wznet.NETreadU8(r))
@@ -208,8 +202,10 @@ weapons %v`, player, structID, structInfo, name, droidID,
 				player := noerr(wznet.NETreadU8(r))
 				start := noerr(wznet.NETreadU8(r))
 				building := noerr(wznet.NETreadU32(r))
+				_ = building
 				topic := noerr(wznet.NETreadU32(r))
 				topicname := fmt.Sprint(topic)
+				_ = topicname
 				if int(topic) < len(aResearch) {
 					topicname = aResearch[topic].Name
 				} else {
@@ -222,7 +218,10 @@ weapons %v`, player, structID, structInfo, name, droidID,
 				if start == 0 {
 					action = "dropped"
 				}
-				rprint("%s on building %d topic %s", action, building, topicname)
+				_ = action
+				if !*short {
+					rprint("%s on building %d topic %s", action, building, topicname)
+				}
 				if r.Len() != 0 {
 					spew.Dump(data)
 					log.Printf("Did not parsed %d bytes", r.Len())
@@ -231,13 +230,17 @@ weapons %v`, player, structID, structInfo, name, droidID,
 		}
 		total++
 	}
-	var buf bytes.Buffer
-	line.SetXAxis(labels).
-		// AddSeries("wantedLatency", ldata).
-		AddSeries("latencyTicks", tdata).
-		SetSeriesOptions(charts.WithLineChartOpts(opts.LineChart{Smooth: true}))
-	line.Render(&buf)
-	must(os.WriteFile("chart.html", buf.Bytes(), 0644))
+	log.Printf("Replay time: %v (%v ticks)", gameTimeToString(gameTime), gameTime)
+	log.Println("Replay packets sizes (bytes):")
+	if !*short {
+		for msg, size := range netsizes {
+			log.Printf("\t%v: %v", msg, size)
+		}
+		log.Println("Players auto-repair unit ecm (ticks):")
+		for pname, gtime := range playersautorepair {
+			log.Printf("\t%v: %v", pname, gameTimeToString(gtime))
+		}
+	}
 }
 
 func readEmbeddedMap(f *os.File) {
@@ -269,7 +272,7 @@ func readSettings(f *os.File) {
 	log.Println("Players:")
 	for i, p := range s.GameOptions.NetplayPlayers {
 		if p.Allocated {
-			log.Printf("pos %2d inx %2d name [%s]", p.Position, i, p.Name)
+			log.Printf("pos %2d inx %2d name [%s] [%s]", p.Position, i, p.Name, s.GameOptions.Multistats[i].Identity)
 			if namePadLength < len(p.Name) {
 				namePadLength = len(p.Name)
 			}
