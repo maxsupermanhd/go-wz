@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
@@ -18,34 +19,41 @@ var (
 	statsdir       = flag.String("stats", "./data/mp/stats/", "Path to stats directory")
 	mapout         = flag.String("mapout", "./map.wz", "Path to save embedded map. Use - to disable")
 	short          = flag.Bool("short", false, "Do not print out everything")
+	dOrder         = flag.Bool("dorder", false, "Dump unit commands")
+	dResearch      = flag.Bool("dres", true, "Dump research packets")
+	dStructinfo    = flag.Bool("dstructs", false, "Dump structure orders (research/production)")
+	checkIllegals  = flag.Bool("verifyUnits", true, "Verify units composition")
 	netPlayPlayers = []NetplayPlayers{}
 	namePadLength  = 2
 )
 
 func main() {
 	log.SetFlags(0)
-	log.Println("Replay dumper starting up...")
+	log.SetOutput(os.Stdout)
 	flag.Parse()
+	PrintNShort("Replay dumper starting up...")
 
-	log.Printf("Loading research from [%s]...", *statsdir)
-	must(loadStatsData(*statsdir))
+	if *dStructinfo || *checkIllegals {
+		log.Printf("Loading research from [%s]...", *statsdir)
+		must(loadStatsData(*statsdir))
+	}
 
-	log.Printf("Opening file [%s]...", *filepath)
+	log.Printf("Dumping replay file file [%s]...", *filepath)
 	f := noerr(os.Open(*filepath))
 
-	log.Println("Reading magic...")
+	PrintNShort("Reading magic...")
 	readMagic(f)
 
-	log.Println("Reading header JSON...")
+	PrintNShort("Reading header JSON...")
 	readSettings(f)
 
-	log.Println("Reading embedded map data...")
+	PrintNShort("Reading embedded map data...")
 	readEmbeddedMap(f)
 
 	log.Printf("Begin of netmessages...")
 	readNetMessages(f)
 
-	log.Println("Bye!")
+	PrintNShort("Bye!")
 	f.Close()
 }
 
@@ -123,6 +131,9 @@ func readNetMessages(f *os.File) {
 			case wznet.GAME_DEBUG_FINISH_RESEARCH:
 				rprint("DEBUG %s", msgid)
 			case wznet.GAME_STRUCTUREINFO:
+				if !*checkIllegals && !*dStructinfo {
+					break
+				}
 				_ = noerr(wznet.NETreadU8(r)) // player
 				// if player != pPlayer {
 				// 	rprint("Wrong player packet %v", player)
@@ -152,7 +163,9 @@ func readNetMessages(f *os.File) {
 					}
 					droidTyped := typifyDroid(droid)
 					if droidTyped != nil {
-						// rprint("droid: %v", spew.Sdump(*droidTyped))
+						if *dStructinfo {
+							rprint("droid: %v", spew.Sdump(*droidTyped))
+						}
 						if illegalmsg := checkDroidIllegal(*droidTyped); illegalmsg != "" {
 							rprint("Illegal droid (%v): %v", illegalmsg, spew.Sdump(*droidTyped))
 						}
@@ -165,40 +178,56 @@ func readNetMessages(f *os.File) {
 					}
 				}
 			case wznet.GAME_DROIDINFO:
-				// player := noerr(wznet.NETreadU8(r))
-				// if player != pPlayer {
-				// 	log.Printf("Player missmatch in %s (%d netmessage %d packet)", msgid, pPlayer, player)
-				// }
-				// subtype := noerr(wznet.NETreadU32(r))
-				// switch subtype {
-				// case DroidOrderSybTypeObj:
-				// 	fallthrough
-				// case DroidOrderSybTypeLoc:
-				// 	order := noerr(wznet.NETreadU32(r))
-				// 	if subtype == DroidOrderSybTypeObj {
-				// 		_ = noerr(wznet.NETreadU32(r)) // destID
-				// 		_ = noerr(wznet.NETreadU32(r)) // destType
-				// 	} else {
-				// 		_ = noerr(wznet.NETreadS32(r))
-				// 		_ = noerr(wznet.NETreadS32(r))
-				// 	}
-				// 	if order == DORDER_BUILD || order == DORDER_LINEBUILD {
-				// 		_ = noerr(wznet.NETreadU32(r)) // structref
-				// 		_ = noerr(wznet.NETreadU16(r)) // direction
-				// 	}
-				// 	if order == DORDER_LINEBUILD {
-				// 		_ = noerr(wznet.NETreadS32(r)) // pos2 x
-				// 		_ = noerr(wznet.NETreadS32(r)) // pos2 y
-				// 	}
-				// 	if order == DORDER_BUILDMODULE {
-				// 		_ = noerr(wznet.NETreadU32(r)) // index
-				// 	}
-				// 	_ = noerr(wznet.NETreadU8(r)) // add
-				// case DroidOrderSybTypeSec:
-				// 	_ = noerr(wznet.NETreadU32(r)) // sec order
-				// 	_ = noerr(wznet.NETreadU32(r)) // sec state
-				// }
+				if !*dOrder {
+					break
+				}
+				player := noerr(wznet.NETreadU8(r))
+				if player != pPlayer {
+					log.Printf("Player missmatch in %s (%d netmessage %d packet)", msgid, pPlayer, player)
+				}
+				subtype := wznet.DroidOrderSybType(noerr(wznet.NETreadU32(r)))
+				printparams := []interface{}{subtype.String()}
+				switch subtype {
+				case wznet.DroidOrderSybTypeObj:
+					fallthrough
+				case wznet.DroidOrderSybTypeLoc:
+					order := wznet.DORDER(noerr(wznet.NETreadU32(r)))
+					printparams = append(printparams, order.String())
+					if subtype == wznet.DroidOrderSybTypeObj {
+						destID := noerr(wznet.NETreadU32(r))
+						destType := noerr(wznet.NETreadU32(r))
+						printparams = append(printparams, "destID", destID, "destType", destType)
+					} else {
+						coordx := noerr(wznet.NETreadS32(r))
+						coordy := noerr(wznet.NETreadS32(r))
+						printparams = append(printparams, "x", coordx, "y", coordy, "tile aligned", coordx%128 == 0, coordy%128 == 0)
+					}
+					if order == wznet.DORDER_BUILD || order == wznet.DORDER_LINEBUILD {
+						structref := noerr(wznet.NETreadU32(r))
+						direction := noerr(wznet.NETreadU16(r))
+						printparams = append(printparams, "structref", structref, "direction", direction)
+					}
+					if order == wznet.DORDER_LINEBUILD {
+						coordx2 := noerr(wznet.NETreadS32(r))
+						coordy2 := noerr(wznet.NETreadS32(r))
+						printparams = append(printparams, "x2", coordx2, "y2", coordy2)
+					}
+					if order == wznet.DORDER_BUILDMODULE {
+						index := noerr(wznet.NETreadU32(r))
+						printparams = append(printparams, "index", index)
+					}
+					add := noerr(wznet.NETreadU8(r))
+					printparams = append(printparams, "add", add)
+				case wznet.DroidOrderSybTypeSec:
+					secorder := noerr(wznet.NETreadU32(r))
+					secstate := noerr(wznet.NETreadU32(r))
+					printparams = append(printparams, "secorder", secorder, "secstate", secstate)
+				}
+				rprint(strings.Repeat("%v ", len(printparams)), printparams...)
 			case wznet.GAME_RESEARCHSTATUS:
+				if !*dResearch {
+					break
+				}
 				player := noerr(wznet.NETreadU8(r))
 				start := noerr(wznet.NETreadU8(r))
 				building := noerr(wznet.NETreadU32(r))
@@ -220,7 +249,7 @@ func readNetMessages(f *os.File) {
 				}
 				_ = action
 				if !*short {
-					rprint("%s on building %d topic %s", action, building, topicname)
+					rprint("Research topic %s %s on building %d", topicname, action, building)
 				}
 				if r.Len() != 0 {
 					spew.Dump(data)
@@ -231,8 +260,8 @@ func readNetMessages(f *os.File) {
 		total++
 	}
 	log.Printf("Replay time: %v (%v ticks)", gameTimeToString(gameTime), gameTime)
-	log.Println("Replay packets sizes (bytes):")
 	if !*short {
+		log.Println("Replay packets sizes (bytes):")
 		for msg, size := range netsizes {
 			log.Printf("\t%v: %v", msg, size)
 		}
@@ -250,13 +279,13 @@ func readEmbeddedMap(f *os.File) {
 	}
 	len := noerr(wznet.ReadUBE32(f))
 	if len != 0 {
-		log.Printf("Embedded map data len %d", len)
+		PrintNShort("Embedded map data len %d", len)
 		b := noerr(wznet.ReadBytes(f, int(len)))
 		if *mapout != "-" {
 			must(os.WriteFile(*mapout, b, 0644))
 		}
 	} else {
-		log.Println("Embedded map data is empty")
+		PrintNShort("Embedded map data is empty")
 	}
 }
 
@@ -267,12 +296,11 @@ func readSettings(f *os.File) {
 	if s.ReplayFormatVer != 2 {
 		log.Printf("Replay format version is odd: %d, should be 2", s.ReplayFormatVer)
 	}
-	log.Printf("Replay netcode %d.%d", s.Major, s.Minor)
-	log.Printf("Replay version %s", s.GameOptions.VersionString)
+	log.Printf("Replay version %s (netcode %d.%d)", s.GameOptions.VersionString, s.Major, s.Minor)
 	log.Println("Players:")
 	for i, p := range s.GameOptions.NetplayPlayers {
 		if p.Allocated {
-			log.Printf("pos %2d inx %2d name [%s] [%s]", p.Position, i, p.Name, s.GameOptions.Multistats[i].Identity)
+			log.Printf("Position %2d index %2d name [%s] [%s]", p.Position, i, p.Name, s.GameOptions.Multistats[i].Identity)
 			if namePadLength < len(p.Name) {
 				namePadLength = len(p.Name)
 			}
@@ -289,9 +317,15 @@ func readMagic(f *os.File) {
 	if !bytes.Equal(magic, []byte{'W', 'Z', 'r', 'p'}) {
 		log.Fatalf("Magic is not `WZRP`! Got [%4s]", magic)
 	}
-	log.Printf("Magic is valid")
+	PrintNShort("Magic is valid")
 }
 
 func gameTimeToString(gt uint32) string {
 	return (time.Duration(int(gt/1000)) * time.Second).String()
+}
+
+func PrintNShort(format string, args ...interface{}) {
+	if !*short {
+		log.Printf(format, args...)
+	}
 }
