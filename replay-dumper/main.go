@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/dustin/go-humanize"
 	"github.com/maxsupermanhd/go-wz/wznet"
 )
 
@@ -24,6 +25,7 @@ var (
 	dOrder         = flag.Bool("dorder", false, "Dump unit commands")
 	dResearch      = flag.Bool("dres", true, "Dump research packets")
 	dStructinfo    = flag.Bool("dstructs", false, "Dump structure orders (research/production)")
+	dumpUnits      = flag.Bool("dumpUnits", false, "Dump production units")
 	checkIllegals  = flag.Bool("verifyUnits", true, "Verify units composition")
 	netPlayPlayers = []NetplayPlayers{}
 	namePadLength  = 2
@@ -35,8 +37,8 @@ func main() {
 	flag.Parse()
 	PrintNShort("Replay dumper starting up...")
 
-	if *dStructinfo || *checkIllegals {
-		log.Printf("Loading research from [%s]...", *statsdir)
+	if *dResearch || *dStructinfo || *checkIllegals {
+		log.Printf("Loading stats from [%s]...", *statsdir)
 		must(loadStatsData(*statsdir))
 	}
 
@@ -140,16 +142,15 @@ func readNetMessages(f *os.File) {
 			case wznet.GAME_DEBUG_FINISH_RESEARCH:
 				rprint("DEBUG %s", msgid)
 			case wznet.GAME_STRUCTUREINFO:
-				if !*checkIllegals && !*dStructinfo {
-					break
+				player := noerr(wznet.NETreadU8(r))
+				if player != pPlayer {
+					log.Printf("Player missmatch in %s (%d netmessage %d packet)", msgid, pPlayer, player)
 				}
-				_ = noerr(wznet.NETreadU8(r)) // player
-				// if player != pPlayer {
-				// 	rprint("Wrong player packet %v", player)
-				// }
-				_ = noerr(wznet.NETreadU32(r)) // structID
+				structID := noerr(wznet.NETreadU32(r))
+				printparams := []interface{}{"structid", structID}
 				structInfo := noerr(wznet.NETreadU8(r))
-				if structInfo == 0 {
+				printparams = append(printparams, "structinfo", structInfo)
+				if structInfo == wznet.STRUCTUREINFO_MANUFACTURE {
 					droid := DroidDef{
 						noerr(wznet.NETstring(r)),  // droid Name
 						noerr(wznet.NETreadU32(r)), // droid ID
@@ -172,11 +173,13 @@ func readNetMessages(f *os.File) {
 					}
 					droidTyped := typifyDroid(droid)
 					if droidTyped != nil {
-						if *dStructinfo {
-							rprint("droid: %v", spew.Sdump(*droidTyped))
+						if *dumpUnits {
+							printparams = append(printparams, "droid", spew.Sdump(*droidTyped))
 						}
-						if illegalmsg := checkDroidIllegal(*droidTyped); illegalmsg != "" {
-							rprint("Illegal droid (%v): %v", illegalmsg, spew.Sdump(*droidTyped))
+						if *checkIllegals {
+							if illegalmsg := checkDroidIllegal(*droidTyped); illegalmsg != "" {
+								rprint("Illegal droid (%v): %v", illegalmsg, spew.Sdump(*droidTyped))
+							}
 						}
 						if droidTyped.Repairunit == "AutoRepair" {
 							_, ok := playersautorepair[netPlayPlayers[pPlayer].Name]
@@ -184,8 +187,13 @@ func readNetMessages(f *os.File) {
 								playersautorepair[netPlayPlayers[pPlayer].Name] = gameTime
 							}
 						}
+					} else {
+						if *dumpUnits {
+							printparams = append(printparams, "droid UNTYPED", spew.Sdump(droid))
+						}
 					}
 				}
+				rprint(strings.Repeat("%v ", len(printparams)), printparams...)
 			case wznet.GAME_DROIDINFO:
 				if !*dOrder {
 					break
@@ -214,7 +222,7 @@ func readNetMessages(f *os.File) {
 					if order == wznet.DORDER_BUILD || order == wznet.DORDER_LINEBUILD {
 						structref := noerr(wznet.NETreadU32(r))
 						direction := noerr(wznet.NETreadU16(r))
-						printparams = append(printparams, "structref", structref, "direction", direction)
+						printparams = append(printparams, "structref", refToStructName(structref), "direction", direction)
 					}
 					if order == wznet.DORDER_LINEBUILD {
 						coordx2 := noerr(wznet.NETreadS32(r))
@@ -239,7 +247,15 @@ func readNetMessages(f *os.File) {
 					droiddelta += noerr(wznet.NETreadU32(r))
 					droidids = append(droidids, droiddelta)
 				}
-				printparams = append(printparams, droidids)
+				oglen := len(droidids)
+				printparams = append(printparams, "droids")
+				if oglen > 4 {
+					droidids = droidids[:4]
+					printparams = append(printparams, droidids)
+					printparams = append(printparams, fmt.Sprintf("and %d more", oglen-4))
+				} else {
+					printparams = append(printparams, droidids)
+				}
 				rprint(strings.Repeat("%v ", len(printparams)), printparams...)
 			case wznet.GAME_RESEARCHSTATUS:
 				if !*dResearch {
@@ -260,7 +276,7 @@ func readNetMessages(f *os.File) {
 				if player != pPlayer {
 					log.Printf("Player missmatch in %s (%d netmessage %d packet)", msgid, pPlayer, player)
 				}
-				action := "picked "
+				action := "picked"
 				if start == 0 {
 					action = "dropped"
 				}
@@ -272,6 +288,10 @@ func readNetMessages(f *os.File) {
 					spew.Dump(data)
 					log.Printf("Did not parsed %d bytes", r.Len())
 				}
+			case wznet.GAME_PLAYER_LEFT:
+				rprint("Left.")
+			default:
+				rprint("%s not handled", msgid)
 			}
 		}
 		total++
@@ -280,7 +300,7 @@ func readNetMessages(f *os.File) {
 	if !*short {
 		log.Println("Replay packets (bytes) (count):")
 		for msg, size := range netsizes {
-			log.Printf("\t%v: %v %v", msg, size, netcounts[msg])
+			log.Printf("\t%v: %v %v", msg, humanize.Bytes(size), netcounts[msg])
 		}
 		log.Println("Players auto-repair unit ecm (ticks):")
 		for pname, gtime := range playersautorepair {
