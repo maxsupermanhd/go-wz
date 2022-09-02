@@ -2,9 +2,12 @@ package main
 
 import (
 	"encoding/json"
+	"log"
 	"os"
 	"path"
 	"sort"
+
+	"github.com/maxsupermanhd/go-wz/wznet"
 )
 
 var (
@@ -148,4 +151,16 @@ func typifyDroid(d DroidDef) *DroidTyped {
 		ret.Sensor = aSensor[d.Sensor].ID
 	}
 	return ret
+}
+
+func refToStructName(ref uint32) string {
+	if ref&wznet.STAT_MASK == wznet.STAT_STRUCTURE {
+		structid := int(ref - wznet.STAT_STRUCTURE)
+		if len(aStructure) <= structid {
+			log.Printf("Structure ref lookup overflow %d, total %d", structid, len(aStructure))
+			return "overflow"
+		}
+		return aStructure[structid].Name
+	}
+	return "notastructure"
 }
