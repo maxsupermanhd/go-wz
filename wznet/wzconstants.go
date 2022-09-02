@@ -197,3 +197,20 @@ const (
 	DORDER_CIRCLE           DORDER = 40   /**< circles target location and engage. */
 	DORDER_HOLD                           /**< hold position until given next order. */
 )
+
+const (
+	STAT_BODY       = uint32(0x010000)
+	STAT_BRAIN      = uint32(0x020000)
+	STAT_PROPULSION = uint32(0x040000)
+	STAT_SENSOR     = uint32(0x050000)
+	STAT_ECM        = uint32(0x060000)
+	STAT_REPAIR     = uint32(0x080000)
+	STAT_WEAPON     = uint32(0x0a0000)
+	STAT_RESEARCH   = uint32(0x0b0000)
+	STAT_TEMPLATE   = uint32(0x0c0000)
+	STAT_STRUCTURE  = uint32(0x0d0000)
+	STAT_FUNCTION   = uint32(0x0e0000)
+	STAT_CONSTRUCT  = uint32(0x0f0000)
+	STAT_FEATURE    = uint32(0x100000)
+	STAT_MASK       = uint32(0xffff0000)
+)
