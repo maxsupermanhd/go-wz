@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -308,7 +310,8 @@ func readSettings(f *os.File) {
 	log.Println("Players:")
 	for i, p := range s.GameOptions.NetplayPlayers {
 		if p.Allocated {
-			log.Printf("Position %2d index %2d name [%s] [%s]", p.Position, i, p.Name, s.GameOptions.Multistats[i].Identity)
+			id := sha256.Sum256(noerr(base64.StdEncoding.DecodeString(s.GameOptions.Multistats[i].Identity)))
+			log.Printf("Position %2d index %2d name [%s] [%s] [%x]", p.Position, i, p.Name, s.GameOptions.Multistats[i].Identity, id)
 			if namePadLength < len(p.Name) {
 				namePadLength = len(p.Name)
 			}
