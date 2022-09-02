@@ -64,6 +64,7 @@ func readNetMessages(f *os.File) {
 	gameTime := uint32(0)
 
 	netsizes := map[string]uint64{}
+	netcounts := map[string]uint64{}
 
 	playersautorepair := map[string]uint32{}
 
@@ -98,6 +99,12 @@ func readNetMessages(f *os.File) {
 			netsizes[msgid] = size1 + uint64(l)
 		} else {
 			netsizes[msgid] = uint64(l)
+		}
+		counts1, ok1 := netcounts[msgid]
+		if ok1 {
+			netcounts[msgid] = counts1 + 1
+		} else {
+			netcounts[msgid] = 1
 		}
 		rprint := func(f string, v ...interface{}) {
 			vv := []interface{}{gameTime, gameTimeToString(gameTime), -namePadLength, netPlayPlayers[pPlayer].Name}
@@ -271,9 +278,9 @@ func readNetMessages(f *os.File) {
 	}
 	log.Printf("Replay time: %v (%v ticks)", gameTimeToString(gameTime), gameTime)
 	if !*short {
-		log.Println("Replay packets sizes (bytes):")
+		log.Println("Replay packets (bytes) (count):")
 		for msg, size := range netsizes {
-			log.Printf("\t%v: %v", msg, size)
+			log.Printf("\t%v: %v %v", msg, size, netcounts[msg])
 		}
 		log.Println("Players auto-repair unit ecm (ticks):")
 		for pname, gtime := range playersautorepair {
