@@ -223,6 +223,14 @@ func readNetMessages(f *os.File) {
 					secstate := noerr(wznet.NETreadU32(r))
 					printparams = append(printparams, "secorder", secorder, "secstate", secstate)
 				}
+				num := noerr(wznet.NETreadU32(r))
+				droidids := []uint32{}
+				droiddelta := uint32(0)
+				for i := uint32(0); i < num; i++ {
+					droiddelta += noerr(wznet.NETreadU32(r))
+					droidids = append(droidids, droiddelta)
+				}
+				printparams = append(printparams, droidids)
 				rprint(strings.Repeat("%v ", len(printparams)), printparams...)
 			case wznet.GAME_RESEARCHSTATUS:
 				if !*dResearch {
