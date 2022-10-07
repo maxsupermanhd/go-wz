@@ -147,9 +147,12 @@ func readNetMessages(f *os.File) {
 					log.Printf("Player missmatch in %s (%d netmessage %d packet)", msgid, pPlayer, player)
 				}
 				structID := noerr(wznet.NETreadU32(r))
-				printparams := []interface{}{"structid", structID}
 				structInfo := noerr(wznet.NETreadU8(r))
-				printparams = append(printparams, "structinfo", structInfo)
+				printparams := []interface{}{}
+				if *dStructinfo {
+					printparams = append(printparams, "structid", structID)
+					printparams = append(printparams, "structinfo", structInfo)
+				}
 				if structInfo == wznet.STRUCTUREINFO_MANUFACTURE {
 					droid := DroidDef{
 						noerr(wznet.NETstring(r)),  // droid Name
@@ -193,7 +196,9 @@ func readNetMessages(f *os.File) {
 						}
 					}
 				}
-				rprint(strings.Repeat("%v ", len(printparams)), printparams...)
+				if len(printparams) > 0 {
+					rprint(strings.Repeat("%v ", len(printparams)), printparams...)
+				}
 			case wznet.GAME_DROIDINFO:
 				if !*dOrder {
 					break
