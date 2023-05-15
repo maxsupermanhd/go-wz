@@ -40,9 +40,12 @@ func ReadUBE32(f io.Reader) (uint32, error) {
 	return binary.BigEndian.Uint32(b[0:]), err
 }
 
+var (
+	table_uint32_t_a = []uint32{78, 95, 32, 70, 0}
+	table_uint32_t_m = []uint32{1, 78, 7410, 237120, 16598400}
+)
+
 func Decode_uint32_t(b uint8, v uint32, n uint) (bool, uint32) {
-	table_uint32_t_a := []uint32{78, 95, 32, 70, 0}
-	table_uint32_t_m := []uint32{1, 78, 7410, 237120, 16598400}
 	a := table_uint32_t_a[n]
 	m := table_uint32_t_m[n]
 
