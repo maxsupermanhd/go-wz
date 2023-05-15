@@ -7,28 +7,42 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"image"
+	"image/png"
+	"io"
 	"log"
+	"net/http"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/dustin/go-heatmap"
+	"github.com/dustin/go-heatmap/schemes"
 	"github.com/dustin/go-humanize"
 	"github.com/maxsupermanhd/go-wz/wznet"
 )
 
 var (
-	filepath       = flag.String("f", "./replay.wzrp", "Path to replay to dump")
-	statsdir       = flag.String("stats", "./data/mp/stats/", "Path to stats directory")
-	mapout         = flag.String("mapout", "./map.wz", "Path to save embedded map. Use - to disable")
-	short          = flag.Bool("short", false, "Do not print out everything")
-	dOrder         = flag.Bool("dorder", false, "Dump unit commands")
-	dResearch      = flag.Bool("dres", true, "Dump research packets")
-	dStructinfo    = flag.Bool("dstructs", false, "Dump structure orders (research/production)")
-	dumpUnits      = flag.Bool("dumpUnits", false, "Dump production units")
-	checkIllegals  = flag.Bool("verifyUnits", true, "Verify units composition")
-	netPlayPlayers = []NetplayPlayers{}
-	namePadLength  = 2
+	filepath         = flag.String("f", "./replay.wzrp", "Path to replay to dump, can be a url if fetch is true")
+	fetch            = flag.Bool("fetch", false, "If true treat filepath as url and fetch replay into memory from it")
+	statsdir         = flag.String("stats", "./data/mp/stats/", "Path to stats directory")
+	mapout           = flag.String("mapout", "./map.wz", "Path to save embedded map. Use - to disable")
+	short            = flag.Bool("short", false, "Do not print out everything")
+	dOrder           = flag.Bool("dorder", false, "Dump unit commands")
+	dResearch        = flag.Bool("dres", true, "Dump research packets")
+	dStructinfo      = flag.Bool("dstructs", false, "Dump structure orders (research/production)")
+	dumpUnits        = flag.Bool("dumpUnits", false, "Dump production units")
+	checkIllegals    = flag.Bool("verifyUnits", true, "Verify units composition")
+	genHeatmap       = flag.Bool("genHeatmap", false, "Generate heatmap of clicks")
+	genHeatmapPath   = flag.String("heatmapOut", "./heatmap.png", "Path out for heatmap")
+	heatmapIntensity = flag.Int("heatmapIntensity", 20, "The impact size of each point on the output")
+	heatmapScale     = flag.Int("mapZ", 32, "Scale of heatmap")
+	mapW             = flag.Int("mapW", 2048, "Map width")
+	mapH             = flag.Int("mapH", 2048, "Map height")
+	netPlayPlayers   = []NetplayPlayers{}
+	namePadLength    = 2
+	clickHeatmap     = []heatmap.DataPoint{}
 )
 
 func main() {
@@ -42,8 +56,14 @@ func main() {
 		must(loadStatsData(*statsdir))
 	}
 
-	log.Printf("Dumping replay file file [%s]...", *filepath)
-	f := noerr(os.Open(*filepath))
+	var f *bytes.Buffer
+	if *fetch {
+		log.Printf("Fetching replay file [%s]...", *filepath)
+		f = bytes.NewBuffer(noerr(io.ReadAll(noerr(http.Get(*filepath)).Body)))
+	} else {
+		log.Printf("Dumping replay file [%s]...", *filepath)
+		f = bytes.NewBuffer(noerr(os.ReadFile(*filepath)))
+	}
 
 	PrintNShort("Reading magic...")
 	readMagic(f)
@@ -57,11 +77,25 @@ func main() {
 	log.Printf("Begin of netmessages...")
 	readNetMessages(f)
 
+	if *genHeatmap {
+		log.Println("Generating heatmap...")
+		hm := heatmap.Heatmap(image.Rect(0, 0, *heatmapScale**mapW, *heatmapScale**mapH), clickHeatmap, *heatmapIntensity, 255, schemes.AlphaFire)
+		log.Printf("Encoding heatmap to %q...", *genHeatmapPath)
+		b := bytes.NewBuffer([]byte{})
+		err := png.Encode(b, hm)
+		if err != nil {
+			log.Println("Failed to encode image: ", err)
+		}
+		err = os.WriteFile(*genHeatmapPath, b.Bytes(), 0644)
+		if err != nil {
+			log.Println("Failed to write image: ", err)
+		}
+	}
+
 	PrintNShort("Bye!")
-	f.Close()
 }
 
-func readNetMessages(f *os.File) {
+func readNetMessages(f *bytes.Buffer) {
 	total := 0
 	gameTime := uint32(0)
 
@@ -142,10 +176,10 @@ func readNetMessages(f *os.File) {
 			case wznet.GAME_DEBUG_FINISH_RESEARCH:
 				rprint("DEBUG %s", msgid)
 			case wznet.GAME_STRUCTUREINFO:
-				player := noerr(wznet.NETreadU8(r))
-				if player != pPlayer {
-					log.Printf("Player missmatch in %s (%d netmessage %d packet)", msgid, pPlayer, player)
-				}
+				_ = noerr(wznet.NETreadU8(r)) // player
+				// if player != pPlayer {
+				// 	log.Printf("Player missmatch in %s (%d netmessage %d packet)", msgid, pPlayer, player)
+				// }
 				structID := noerr(wznet.NETreadU32(r))
 				structInfo := noerr(wznet.NETreadU8(r))
 				printparams := []interface{}{}
@@ -200,13 +234,13 @@ func readNetMessages(f *os.File) {
 					rprint(strings.Repeat("%v ", len(printparams)), printparams...)
 				}
 			case wznet.GAME_DROIDINFO:
-				if !*dOrder {
+				if !(*dOrder || *genHeatmap) {
 					break
 				}
-				player := noerr(wznet.NETreadU8(r))
-				if player != pPlayer {
-					log.Printf("Player missmatch in %s (%d netmessage %d packet)", msgid, pPlayer, player)
-				}
+				_ = noerr(wznet.NETreadU8(r)) // player
+				// if player != pPlayer {
+				// 	log.Printf("Player missmatch in %s (%d netmessage %d packet)", msgid, pPlayer, player)
+				// }
 				subtype := wznet.DroidOrderSybType(noerr(wznet.NETreadU32(r)))
 				printparams := []interface{}{subtype.String()}
 				switch subtype {
@@ -222,6 +256,9 @@ func readNetMessages(f *os.File) {
 					} else {
 						coordx := noerr(wznet.NETreadS32(r))
 						coordy := noerr(wznet.NETreadS32(r))
+						if *genHeatmap {
+							clickHeatmap = append(clickHeatmap, heatmap.P(float64(coordx), float64(coordy)))
+						}
 						printparams = append(printparams, "x", coordx, "y", coordy, "tile aligned", coordx%128 == 0, coordy%128 == 0)
 					}
 					if order == wznet.DORDER_BUILD || order == wznet.DORDER_LINEBUILD {
@@ -261,12 +298,14 @@ func readNetMessages(f *os.File) {
 				} else {
 					printparams = append(printparams, droidids)
 				}
-				rprint(strings.Repeat("%v ", len(printparams)), printparams...)
+				if *dOrder {
+					rprint(strings.Repeat("%v ", len(printparams)), printparams...)
+				}
 			case wznet.GAME_RESEARCHSTATUS:
 				if !*dResearch {
 					break
 				}
-				player := noerr(wznet.NETreadU8(r))
+				_ = noerr(wznet.NETreadU8(r)) //player
 				start := noerr(wznet.NETreadU8(r))
 				building := noerr(wznet.NETreadU32(r))
 				_ = building
@@ -278,9 +317,9 @@ func readNetMessages(f *os.File) {
 				} else {
 					log.Printf("Topic overflow or underflow, topic %d total %d", topic, len(aResearch))
 				}
-				if player != pPlayer {
-					log.Printf("Player missmatch in %s (%d netmessage %d packet)", msgid, pPlayer, player)
-				}
+				// if player != pPlayer {
+				// 	log.Printf("Player missmatch in %s (%d netmessage %d packet)", msgid, pPlayer, player)
+				// }
 				action := "picked"
 				if start == 0 {
 					action = "dropped"
@@ -314,7 +353,7 @@ func readNetMessages(f *os.File) {
 	}
 }
 
-func readEmbeddedMap(f *os.File) {
+func readEmbeddedMap(f *bytes.Buffer) {
 	dv := noerr(wznet.ReadUBE32(f))
 	if dv != 1 {
 		log.Printf("Embedded map data version is odd: %d, should be 1", dv)
@@ -331,7 +370,7 @@ func readEmbeddedMap(f *os.File) {
 	}
 }
 
-func readSettings(f *os.File) {
+func readSettings(f *bytes.Buffer) {
 	b := noerr(wznet.ReadBytes(f, int(noerr(wznet.ReadUBE32(f)))))
 	var s ReplaySettings
 	must(json.Unmarshal(b, &s))
@@ -339,6 +378,8 @@ func readSettings(f *os.File) {
 		log.Printf("Replay format version is odd: %d, should be 2", s.ReplayFormatVer)
 	}
 	log.Printf("Replay version %s (netcode %d.%d)", s.GameOptions.VersionString, s.Major, s.Minor)
+	log.Printf("Map: %q %q", s.GameOptions.Game.Map, s.GameOptions.Game.Hash)
+	log.Printf("Recorded by host: %v", s.GameOptions.NetplayBComms)
 	log.Println("Players:")
 	for i, p := range s.GameOptions.NetplayPlayers {
 		if p.Allocated {
@@ -352,7 +393,7 @@ func readSettings(f *os.File) {
 	netPlayPlayers = s.GameOptions.NetplayPlayers
 }
 
-func readMagic(f *os.File) {
+func readMagic(f *bytes.Buffer) {
 	magic := make([]byte, 4)
 	if noerr(f.Read(magic)) != 4 {
 		log.Fatal("Read failed to read magic")
