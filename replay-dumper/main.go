@@ -16,10 +16,13 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/image/draw"
+
 	"github.com/davecgh/go-spew/spew"
 	"github.com/dustin/go-heatmap"
 	"github.com/dustin/go-heatmap/schemes"
 	"github.com/dustin/go-humanize"
+	"github.com/maxsupermanhd/go-wz/phobos"
 	"github.com/maxsupermanhd/go-wz/wznet"
 )
 
@@ -40,10 +43,22 @@ var (
 	heatmapScale     = flag.Int("mapZ", 32, "Scale of heatmap")
 	mapW             = flag.Int("mapW", 2048, "Map width")
 	mapH             = flag.Int("mapH", 2048, "Map height")
+	phobosInfo       = flag.Bool("phobosInfo", true, "Fetch information about map from wz2100.euphobos.net/maps/")
+	phobosPreview    = flag.Bool("phobosPreview", true, "Fetch map preview from wz2100.euphobos.net/maps/")
+	filePreview      = flag.String("filePreview", "", "Overlay map preview (png) from this path")
+	overrideMapHash  = flag.String("overrideHash", "", "Optional override for map hash")
 	netPlayPlayers   = []NetplayPlayers{}
 	namePadLength    = 2
-	clickHeatmap     = []heatmap.DataPoint{}
+	// clickHeatmap     = map[int]clickPoint{}
+	clickHeatmap  = []heatmap.DataPoint{}
+	mapHash       = ""
+	replayOptions = GameOptions{}
 )
+
+// type clickPoint struct {
+// 	Pos  heatmap.DataPoint
+// 	Tick uint32
+// }
 
 func main() {
 	log.SetFlags(0)
@@ -78,8 +93,45 @@ func main() {
 	readNetMessages(f)
 
 	if *genHeatmap {
+		mw := *mapW
+		mh := *mapH
+		if *phobosInfo {
+			log.Println("Fetching info about map...")
+			info := noerr(phobos.FetchOnePhobosInfo(mapHash))
+			fmt.Sscanf(info.MapSize, "%dx%d", &mw, &mh)
+			log.Printf("Size: W %d H %d", mw, mh)
+		}
 		log.Println("Generating heatmap...")
-		hm := heatmap.Heatmap(image.Rect(0, 0, *heatmapScale**mapW, *heatmapScale**mapH), clickHeatmap, *heatmapIntensity, 255, schemes.AlphaFire)
+		clickHeatmap = append(clickHeatmap, heatmap.P(0, 0))
+		clickHeatmap = append(clickHeatmap, heatmap.P(float64(mw*128), float64(mh*128)))
+		for i, v := range clickHeatmap {
+			clickHeatmap[i] = heatmap.P(v.X()*-1+float64(mw*128), v.Y())
+			if int(clickHeatmap[i].X()) > mw*128 {
+				clickHeatmap[i] = heatmap.P(float64(mw*128), clickHeatmap[i].Y())
+			}
+			if int(clickHeatmap[i].Y()) > mh*128 {
+				clickHeatmap[i] = heatmap.P(clickHeatmap[i].X(), float64(mw*128))
+			}
+		}
+		log.Printf("Plotting %d samples...", len(clickHeatmap))
+		hm := heatmap.Heatmap(image.Rect(0, 0, *heatmapScale*mw, *heatmapScale*mh), clickHeatmap, *heatmapIntensity, 255, schemes.AlphaFire)
+		if *filePreview != "" {
+			b := noerr(os.ReadFile(*filePreview))
+			prv := noerr(png.Decode(bytes.NewBuffer(b)))
+			log.Println("Rendering heightmap with preview...")
+			i := image.NewRGBA(image.Rect(0, 0, *heatmapScale*mw, *heatmapScale*mh))
+			draw.NearestNeighbor.Scale(i, i.Rect, prv, prv.Bounds(), draw.Over, nil)
+			draw.Draw(i, i.Bounds(), hm, image.Point{}, draw.Over)
+			hm = i
+		} else if *phobosPreview {
+			log.Println("Fetching map preview...")
+			prv := noerr(phobos.FetchMapPreview(mapHash, phobos.PreviewTypeLargeJPEG))
+			log.Println("Rendering heightmap with preview...")
+			i := image.NewRGBA(image.Rect(0, 0, *heatmapScale*mw, *heatmapScale*mh))
+			draw.NearestNeighbor.Scale(i, i.Rect, prv, prv.Bounds(), draw.Over, nil)
+			draw.Draw(i, i.Bounds(), hm, image.Point{}, draw.Over)
+			hm = i
+		}
 		log.Printf("Encoding heatmap to %q...", *genHeatmapPath)
 		b := bytes.NewBuffer([]byte{})
 		err := png.Encode(b, hm)
@@ -237,7 +289,7 @@ func readNetMessages(f *bytes.Buffer) {
 				if !(*dOrder || *genHeatmap) {
 					break
 				}
-				_ = noerr(wznet.NETreadU8(r)) // player
+				_ = noerr(wznet.NETreadU8(r))
 				// if player != pPlayer {
 				// 	log.Printf("Player missmatch in %s (%d netmessage %d packet)", msgid, pPlayer, player)
 				// }
@@ -257,6 +309,10 @@ func readNetMessages(f *bytes.Buffer) {
 						coordx := noerr(wznet.NETreadS32(r))
 						coordy := noerr(wznet.NETreadS32(r))
 						if *genHeatmap {
+							// clickHeatmap[replayOptions.NetplayPlayers[player].Position] = clickPoint{
+							// 	Pos:  heatmap.P(float64(coordx), float64(coordy)),
+							// 	Tick: gameTime,
+							// }
 							clickHeatmap = append(clickHeatmap, heatmap.P(float64(coordx), float64(coordy)))
 						}
 						printparams = append(printparams, "x", coordx, "y", coordy, "tile aligned", coordx%128 == 0, coordy%128 == 0)
@@ -334,6 +390,8 @@ func readNetMessages(f *bytes.Buffer) {
 				}
 			case wznet.GAME_PLAYER_LEFT:
 				rprint("Left.")
+			case wznet.GAME_GIFT:
+				// TODO parse gift
 			default:
 				rprint("%s not handled", msgid)
 			}
@@ -379,6 +437,11 @@ func readSettings(f *bytes.Buffer) {
 	}
 	log.Printf("Replay version %s (netcode %d.%d)", s.GameOptions.VersionString, s.Major, s.Minor)
 	log.Printf("Map: %q %q", s.GameOptions.Game.Map, s.GameOptions.Game.Hash)
+	mapHash = s.GameOptions.Game.Hash
+	if *overrideMapHash != "" {
+		mapHash = *overrideMapHash
+	}
+	replayOptions = s.GameOptions
 	log.Printf("Recorded by host: %v", s.GameOptions.NetplayBComms)
 	log.Println("Players:")
 	for i, p := range s.GameOptions.NetplayPlayers {

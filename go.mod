@@ -8,4 +8,7 @@ require (
 	github.com/go-echarts/go-echarts/v2 v2.2.4
 )
 
-require github.com/dustin/go-heatmap v0.0.0-20180603032536-b89dbd73785a // indirect
+require (
+	github.com/dustin/go-heatmap v0.0.0-20180603032536-b89dbd73785a // indirect
+	golang.org/x/image v0.7.0
+)
