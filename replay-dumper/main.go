@@ -44,7 +44,7 @@ var (
 	mapW                 = flag.Int("mapW", 2048, "Map width")
 	mapH                 = flag.Int("mapH", 2048, "Map height")
 	phobosInfo           = flag.Bool("phobosInfo", true, "Fetch information about map from wz2100.euphobos.net/maps/")
-	phobosMapSizeFromScr = flag.Bool("phobosMapSizeFromScr", true, "Get map size from map_scr or map_size")
+	phobosMapSizeFromScr = flag.Bool("phobosMapSizeFromScr", false, "Get map size from map_scr or map_size")
 	phobosPreview        = flag.Bool("phobosPreview", true, "Fetch map preview from wz2100.euphobos.net/maps/")
 	filePreview          = flag.String("filePreview", "", "Overlay map preview (png) from this path")
 	overrideMapHash      = flag.String("overrideHash", "", "Optional override for map hash")
@@ -111,7 +111,7 @@ func main() {
 		clickHeatmap = append(clickHeatmap, heatmap.P(0, 0))
 		clickHeatmap = append(clickHeatmap, heatmap.P(float64(mw*128), float64(mh*128)))
 		for i, v := range clickHeatmap {
-			clickHeatmap[i] = heatmap.P(v.X()*-1+float64(mw*128), v.Y())
+			clickHeatmap[i] = heatmap.P(v.X(), v.Y()*-1+float64(mh*128))
 			if int(clickHeatmap[i].X()) > mw*128 {
 				clickHeatmap[i] = heatmap.P(float64(mw*128), clickHeatmap[i].Y())
 			}
@@ -140,14 +140,8 @@ func main() {
 		}
 		log.Printf("Encoding heatmap to %q...", *genHeatmapPath)
 		b := bytes.NewBuffer([]byte{})
-		err := png.Encode(b, hm)
-		if err != nil {
-			log.Println("Failed to encode image: ", err)
-		}
-		err = os.WriteFile(*genHeatmapPath, b.Bytes(), 0644)
-		if err != nil {
-			log.Println("Failed to write image: ", err)
-		}
+		must(png.Encode(b, hm))
+		must(os.WriteFile(*genHeatmapPath, b.Bytes(), 0644))
 	}
 
 	PrintNShort("Bye!")
