@@ -27,28 +27,29 @@ import (
 )
 
 var (
-	filepath         = flag.String("f", "./replay.wzrp", "Path to replay to dump, can be a url if fetch is true")
-	fetch            = flag.Bool("fetch", false, "If true treat filepath as url and fetch replay into memory from it")
-	statsdir         = flag.String("stats", "./data/mp/stats/", "Path to stats directory")
-	mapout           = flag.String("mapout", "./map.wz", "Path to save embedded map. Use - to disable")
-	short            = flag.Bool("short", false, "Do not print out everything")
-	dOrder           = flag.Bool("dorder", false, "Dump unit commands")
-	dResearch        = flag.Bool("dres", true, "Dump research packets")
-	dStructinfo      = flag.Bool("dstructs", false, "Dump structure orders (research/production)")
-	dumpUnits        = flag.Bool("dumpUnits", false, "Dump production units")
-	checkIllegals    = flag.Bool("verifyUnits", true, "Verify units composition")
-	genHeatmap       = flag.Bool("genHeatmap", false, "Generate heatmap of clicks")
-	genHeatmapPath   = flag.String("heatmapOut", "./heatmap.png", "Path out for heatmap")
-	heatmapIntensity = flag.Int("heatmapIntensity", 20, "The impact size of each point on the output")
-	heatmapScale     = flag.Int("mapZ", 32, "Scale of heatmap")
-	mapW             = flag.Int("mapW", 2048, "Map width")
-	mapH             = flag.Int("mapH", 2048, "Map height")
-	phobosInfo       = flag.Bool("phobosInfo", true, "Fetch information about map from wz2100.euphobos.net/maps/")
-	phobosPreview    = flag.Bool("phobosPreview", true, "Fetch map preview from wz2100.euphobos.net/maps/")
-	filePreview      = flag.String("filePreview", "", "Overlay map preview (png) from this path")
-	overrideMapHash  = flag.String("overrideHash", "", "Optional override for map hash")
-	netPlayPlayers   = []NetplayPlayers{}
-	namePadLength    = 2
+	filepath             = flag.String("f", "./replay.wzrp", "Path to replay to dump, can be a url if fetch is true")
+	fetch                = flag.Bool("fetch", false, "If true treat filepath as url and fetch replay into memory from it")
+	statsdir             = flag.String("stats", "./data/mp/stats/", "Path to stats directory")
+	mapout               = flag.String("mapout", "./map.wz", "Path to save embedded map. Use - to disable")
+	short                = flag.Bool("short", false, "Do not print out everything")
+	dOrder               = flag.Bool("dorder", false, "Dump unit commands")
+	dResearch            = flag.Bool("dres", true, "Dump research packets")
+	dStructinfo          = flag.Bool("dstructs", false, "Dump structure orders (research/production)")
+	dumpUnits            = flag.Bool("dumpUnits", false, "Dump production units")
+	checkIllegals        = flag.Bool("verifyUnits", true, "Verify units composition")
+	genHeatmap           = flag.Bool("genHeatmap", false, "Generate heatmap of clicks")
+	genHeatmapPath       = flag.String("heatmapOut", "./heatmap.png", "Path out for heatmap")
+	heatmapIntensity     = flag.Int("heatmapIntensity", 20, "The impact size of each point on the output")
+	heatmapScale         = flag.Int("mapZ", 32, "Scale of heatmap")
+	mapW                 = flag.Int("mapW", 2048, "Map width")
+	mapH                 = flag.Int("mapH", 2048, "Map height")
+	phobosInfo           = flag.Bool("phobosInfo", true, "Fetch information about map from wz2100.euphobos.net/maps/")
+	phobosMapSizeFromScr = flag.Bool("phobosMapSizeFromScr", true, "Get map size from map_scr or map_size")
+	phobosPreview        = flag.Bool("phobosPreview", true, "Fetch map preview from wz2100.euphobos.net/maps/")
+	filePreview          = flag.String("filePreview", "", "Overlay map preview (png) from this path")
+	overrideMapHash      = flag.String("overrideHash", "", "Optional override for map hash")
+	netPlayPlayers       = []NetplayPlayers{}
+	namePadLength        = 2
 	// clickHeatmap     = map[int]clickPoint{}
 	clickHeatmap  = []heatmap.DataPoint{}
 	mapHash       = ""
@@ -98,7 +99,12 @@ func main() {
 		if *phobosInfo {
 			log.Println("Fetching info about map...")
 			info := noerr(phobos.FetchOnePhobosInfo(mapHash))
-			fmt.Sscanf(info.MapSize, "%dx%d", &mw, &mh)
+			if *phobosMapSizeFromScr {
+				mw = info.MapScrX2
+				mh = info.MapScrY2
+			} else {
+				fmt.Sscanf(info.MapSize, "%dx%d", &mw, &mh)
+			}
 			log.Printf("Size: W %d H %d", mw, mh)
 		}
 		log.Println("Generating heatmap...")
