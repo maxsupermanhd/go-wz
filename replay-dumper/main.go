@@ -27,29 +27,30 @@ import (
 )
 
 var (
-	filepath             = flag.String("f", "./replay.wzrp", "Path to replay to dump, can be a url if fetch is true")
-	fetch                = flag.Bool("fetch", false, "If true treat filepath as url and fetch replay into memory from it")
-	statsdir             = flag.String("stats", "./data/mp/stats/", "Path to stats directory")
-	mapout               = flag.String("mapout", "./map.wz", "Path to save embedded map. Use - to disable")
-	short                = flag.Bool("short", false, "Do not print out everything")
-	dOrder               = flag.Bool("dorder", false, "Dump unit commands")
-	dResearch            = flag.Bool("dres", true, "Dump research packets")
-	dStructinfo          = flag.Bool("dstructs", false, "Dump structure orders (research/production)")
-	dumpUnits            = flag.Bool("dumpUnits", false, "Dump production units")
-	checkIllegals        = flag.Bool("verifyUnits", true, "Verify units composition")
-	genHeatmap           = flag.Bool("genHeatmap", false, "Generate heatmap of clicks")
-	genHeatmapPath       = flag.String("heatmapOut", "./heatmap.png", "Path out for heatmap")
-	heatmapIntensity     = flag.Int("heatmapIntensity", 20, "The impact size of each point on the output")
-	heatmapScale         = flag.Int("mapZ", 32, "Scale of heatmap")
-	mapW                 = flag.Int("mapW", 2048, "Map width")
-	mapH                 = flag.Int("mapH", 2048, "Map height")
-	phobosInfo           = flag.Bool("phobosInfo", true, "Fetch information about map from wz2100.euphobos.net/maps/")
-	phobosMapSizeFromScr = flag.Bool("phobosMapSizeFromScr", false, "Get map size from map_scr or map_size")
-	phobosPreview        = flag.Bool("phobosPreview", true, "Fetch map preview from wz2100.euphobos.net/maps/")
-	filePreview          = flag.String("filePreview", "", "Overlay map preview (png) from this path")
-	overrideMapHash      = flag.String("overrideHash", "", "Optional override for map hash")
-	netPlayPlayers       = []NetplayPlayers{}
-	namePadLength        = 2
+	filepath               = flag.String("f", "./replay.wzrp", "Path to replay to dump, can be a url if fetch is true")
+	fetch                  = flag.Bool("fetch", false, "If true treat filepath as url and fetch replay into memory from it")
+	statsdir               = flag.String("stats", "./data/mp/stats/", "Path to stats directory")
+	mapout                 = flag.String("mapout", "./map.wz", "Path to save embedded map. Use - to disable")
+	short                  = flag.Bool("short", false, "Do not print out everything")
+	dOrder                 = flag.Bool("dorder", false, "Dump unit commands")
+	dResearch              = flag.Bool("dres", true, "Dump research packets")
+	dStructinfo            = flag.Bool("dstructs", false, "Dump structure orders (research/production)")
+	dumpUnits              = flag.Bool("dumpUnits", false, "Dump production units")
+	checkIllegals          = flag.Bool("verifyUnits", true, "Verify units composition")
+	genHeatmap             = flag.Bool("genHeatmap", false, "Generate heatmap of clicks")
+	genHeatmapPath         = flag.String("heatmapOut", "./heatmap.png", "Path out for heatmap")
+	heatmapIntensity       = flag.Int("heatmapIntensity", 20, "The impact size of each point on the output")
+	heatmapScale           = flag.Int("mapZ", 32, "Scale of heatmap")
+	mapW                   = flag.Int("mapW", 2048, "Map width")
+	mapH                   = flag.Int("mapH", 2048, "Map height")
+	phobosInfo             = flag.Bool("phobosInfo", true, "Fetch information about map from wz2100.euphobos.net/maps/")
+	phobosMapSizeFromScr   = flag.Bool("phobosMapSizeFromScr", false, "Get map size from map_scr or map_size")
+	phobosPreview          = flag.Bool("phobosPreview", true, "Fetch map preview from wz2100.euphobos.net/maps/")
+	phobosPreviewHeightmap = flag.Bool("phobosPreviewHeightmap", false, "Fetch map preview from wz2100.euphobos.net/maps/ in heightmap format")
+	filePreview            = flag.String("filePreview", "", "Overlay map preview (png) from this path")
+	overrideMapHash        = flag.String("overrideHash", "", "Optional override for map hash")
+	netPlayPlayers         = []NetplayPlayers{}
+	namePadLength          = 2
 	// clickHeatmap     = map[int]clickPoint{}
 	clickHeatmap  = []heatmap.DataPoint{}
 	mapHash       = ""
@@ -131,7 +132,11 @@ func main() {
 			hm = i
 		} else if *phobosPreview {
 			log.Println("Fetching map preview...")
-			prv := noerr(phobos.FetchMapPreview(mapHash, phobos.PreviewTypeLargeJPEG))
+			ptf := phobos.PreviewTypePixelPerfect
+			if *phobosPreviewHeightmap {
+				ptf = phobos.PreviewTypeHeightmap
+			}
+			prv := noerr(phobos.FetchMapPreview(mapHash, ptf))
 			log.Println("Rendering heightmap with preview...")
 			i := image.NewRGBA(image.Rect(0, 0, *heatmapScale*mw, *heatmapScale*mh))
 			draw.NearestNeighbor.Scale(i, i.Rect, prv, prv.Bounds(), draw.Over, nil)
