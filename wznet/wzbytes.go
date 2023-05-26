@@ -3,41 +3,25 @@ package wznet
 import (
 	"encoding/binary"
 	"io"
-	"log"
 )
 
 func ReadBytes(f io.Reader, n int) ([]byte, error) {
-	if n <= 0 {
-		if n < 0 {
-			log.Printf("ReadBEBytes called with negative length! (%d)", n)
-		}
-		return []byte{}, nil
-	}
 	b := make([]byte, n)
-	r, err := f.Read(b)
-	if err != nil {
-		return []byte{}, err
-	}
-	if n != r {
-		log.Printf("Read bytes failed to read requested %d, got only %d", n, r)
-	}
+	_, err := io.ReadFull(f, b)
 	return b, err
 }
 func ReadByte(f io.Reader) (byte, bool, error) {
-	b := make([]byte, 1)
-	r, err := f.Read(b)
+	var p [1]byte
+	_, err := f.Read(p[:])
 	if err != nil {
-		return b[0], false, err
+		return p[0], false, err
 	}
-	if r != 1 {
-		return b[0], false, err
-	}
-	return b[0], true, err
+	return p[0], true, nil
 }
 
-func ReadUBE32(f io.Reader) (uint32, error) {
-	b, err := ReadBytes(f, 4)
-	return binary.BigEndian.Uint32(b[0:]), err
+func ReadUBE32(f io.Reader) (ret uint32, err error) {
+	err = binary.Read(f, binary.BigEndian, &ret)
+	return
 }
 
 var (
@@ -48,9 +32,7 @@ var (
 func Decode_uint32_t(b uint8, v uint32, n uint) (bool, uint32) {
 	a := table_uint32_t_a[n]
 	m := table_uint32_t_m[n]
-
 	isLastByte := uint32(b) < 256-a
-	// log.Printf("Decoding byte %02x (%2d) is last %t", b, n, isLastByte)
 	if isLastByte {
 		v += uint32(b) * m
 	} else {
