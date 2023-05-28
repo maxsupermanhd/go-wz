@@ -19,12 +19,8 @@ type NetPacket interface {
 func ParsePacket(pt byte, l uint32, r io.Reader) (ret NetPacket, err error) {
 	p := packetParsers[pt]
 	if p == nil {
-		pkname, ok := wznet.NetMessageType[pt]
-		if ok {
-			return nil, fmt.Errorf("no packet parser for %v", pkname)
-		} else {
-			return nil, fmt.Errorf("no packet parser for unknown packet type %v", pt)
-		}
+		_, err = io.ReadAll(r)
+		return pk{pt, l}, err
 	}
 	ret = p(pk{pt, l}, r)
 	return ret, err
