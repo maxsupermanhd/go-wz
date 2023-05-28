@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"log"
 
 	"github.com/maxsupermanhd/go-wz/packet"
 	"github.com/maxsupermanhd/go-wz/wznet"
@@ -97,8 +96,6 @@ func readNetMessage(r io.Reader) (*ReplayPacket, error) {
 		return nil, err
 	}
 	ret.Player = h[0]
-
-	log.Println(h)
 
 	l, err := wznet.NETreadU32(r)
 	if err != nil {
