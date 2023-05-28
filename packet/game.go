@@ -40,6 +40,7 @@ var (
 		wznet.GAME_DROIDINFO:      ParseGameDroidInfo,
 		wznet.GAME_PLAYER_LEFT:    ParseGamePlayerLeft,
 		wznet.GAME_GIFT:           ParseGameGift,
+		wznet.GAME_LASSAT:         ParseGameLasSat,
 		wznet.REPLAY_ENDED:        ParseNothing,
 	}
 )
@@ -234,6 +235,23 @@ func ParseGameGift(p pk, r io.Reader) NetPacket {
 	ret.From = panicerr(wznet.NETreadU8(r))
 	ret.To = panicerr(wznet.NETreadU8(r))
 	ret.DroidID = panicerr(wznet.NETreadU32(r))
+	return ret
+}
+
+type PkGameLasSat struct {
+	pk
+	Player       uint8
+	ID           uint32
+	TargetID     uint32
+	TargetPlayer uint8
+}
+
+func ParseGameLasSat(p pk, r io.Reader) NetPacket {
+	ret := PkGameLasSat{pk: p}
+	ret.Player = panicerr(wznet.NETreadU8(r))
+	ret.ID = panicerr(wznet.NETreadU32(r))
+	ret.TargetID = panicerr(wznet.NETreadU32(r))
+	ret.TargetPlayer = panicerr(wznet.NETreadU8(r))
 	return ret
 }
 
