@@ -255,6 +255,19 @@ func ParseGameLasSat(p pk, r io.Reader) NetPacket {
 	return ret
 }
 
+type PkGameDebugMode struct {
+	pk
+	Value bool
+}
+
+func ParseGameDebugMode(p pk, r io.Reader) NetPacket {
+	ret := PkGameDebugMode{pk: p}
+	if panicerr(wznet.NETreadU8(r)) > 0 {
+		ret.Value = true
+	}
+	return ret
+}
+
 func panicerr[T any](t T, err error) T {
 	if err != nil {
 		pc, filename, line, _ := runtime.Caller(1)
