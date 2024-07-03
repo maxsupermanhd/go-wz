@@ -74,7 +74,8 @@ const (
 	GAME_MAX_TYPE ///< Maximum+1 valid GAME_ type, *MUST* be last.
 
 	// The following messages are used for playing back replays.
-	REPLAY_ENDED ///< A special message for signifying the end of the replay
+	REPLAY_ENDED   ///< A special message for signifying the end of the replay
+	REPLAY_ENDED_2 = 255
 )
 
 var NetMessageType = map[byte]string{

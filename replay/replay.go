@@ -54,7 +54,7 @@ func ReadReplay(r io.Reader) (o *Replay, err error) {
 			return nil, err
 		}
 		o.Messages = append(o.Messages, *msg)
-		if msg.Type() == wznet.REPLAY_ENDED {
+		if msg.Type() == wznet.REPLAY_ENDED || msg.Type() == wznet.REPLAY_ENDED_2 {
 			break
 		}
 	}
