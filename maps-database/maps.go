@@ -2,6 +2,8 @@ package mapsdatabase
 
 import (
 	"encoding/json"
+	"image"
+	"image/png"
 	"io"
 	"net/http"
 	"time"
@@ -120,4 +122,19 @@ func FetchMapBlobWithClient(hash string, cl *http.Client) ([]byte, error) {
 		return nil, err
 	}
 	return io.ReadAll(br.Body)
+}
+
+func FetchMapPreview(hash string) (image.Image, error) {
+	return FetchMapPreviewWithClient(hash, defaultClient)
+}
+
+func FetchMapPreviewWithClient(hash string, cl *http.Client) (image.Image, error) {
+	if cl == nil {
+		cl = defaultClient
+	}
+	br, err := cl.Get("https://maps.wz2100.net/api/v1/maps/" + hash + "/preview.png")
+	if err != nil {
+		return nil, err
+	}
+	return png.Decode(br.Body)
 }
