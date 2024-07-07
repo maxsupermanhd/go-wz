@@ -9,14 +9,14 @@ import (
 	"time"
 )
 
-// https://github.com/Warzone2100/maps-database/blob/main/docs/API.md#example-1
+// https://github.com/Warzone2100/maps-database/blob/main/docs/API.md
 type MapInfo struct {
-	Name    string `json:"name"`
-	Slots   int    `json:"slots"`
-	Tileset string `json:"tileset"`
-	Author  string `json:"author"`
-	License string `json:"license"`
-	Created string `json:"created"`
+	Name    string   `json:"name"`
+	Slots   int      `json:"slots"`
+	Tileset string   `json:"tileset"`
+	Authors []string `json:"-"`
+	License string   `json:"license"`
+	Created string   `json:"created"`
 	Size    struct {
 		W int `json:"w"`
 		H int `json:"h"`
@@ -79,6 +79,42 @@ type MapInfo struct {
 		Hash     string `json:"hash"`
 		Size     int    `json:"size"`
 	} `json:"download"`
+}
+
+func (f *MapInfo) UnmarshalJSON(data []byte) error {
+	type MapInfoAlias MapInfo
+	aliased := &struct {
+		Author any `json:"author"`
+		*MapInfoAlias
+	}{
+		MapInfoAlias: (*MapInfoAlias)(f),
+	}
+	if err := json.Unmarshal(data, &aliased); err != nil {
+		return err
+	}
+	switch v := aliased.Author.(type) {
+	case string:
+		aliased.Authors = []string{v}
+	case []string:
+		aliased.Authors = v
+	}
+	return nil
+}
+
+func (f *MapInfo) MarshalJSON() ([]byte, error) {
+	type MapInfoAlias MapInfo
+	aliased := &struct {
+		Author any `json:"author"`
+		*MapInfoAlias
+	}{
+		MapInfoAlias: (*MapInfoAlias)(f),
+	}
+	if len(aliased.Authors) == 1 {
+		aliased.Author = aliased.Authors[0]
+	} else {
+		aliased.Author = aliased.Authors
+	}
+	return json.Marshal(aliased)
 }
 
 var defaultClient = &http.Client{
