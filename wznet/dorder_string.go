@@ -59,7 +59,7 @@ var (
 
 func (i DORDER) String() string {
 	switch {
-	case 0 <= i && i <= 35:
+	case i <= 35:
 		return _DORDER_name_0[_DORDER_index_0[i]:_DORDER_index_0[i+1]]
 	case i == 40:
 		return _DORDER_name_1

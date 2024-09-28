@@ -158,8 +158,8 @@ type PkGameDroidInfo struct {
 	CoordY2   int32
 	Index     uint32
 	Add       bool
-	SecOrder  uint32
-	SecState  uint32
+	SecOrder  wznet.DROID_SECONDARY_ORDER
+	SecState  wznet.DROID_SECONDARY_STATE
 	Droids    []uint32
 }
 
@@ -194,8 +194,8 @@ func ParseGameDroidInfo(p pk, r io.Reader) NetPacket {
 			ret.Add = true
 		}
 	case wznet.DroidOrderSybTypeSec:
-		ret.SecOrder = panicerr(wznet.NETreadU32(r))
-		ret.SecState = panicerr(wznet.NETreadU32(r))
+		ret.SecOrder = wznet.DROID_SECONDARY_ORDER(panicerr(wznet.NETreadU32(r)))
+		ret.SecState = wznet.DROID_SECONDARY_STATE(panicerr(wznet.NETreadU32(r)))
 	}
 	num := panicerr(wznet.NETreadU32(r))
 	droiddelta := uint32(0)

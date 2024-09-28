@@ -199,6 +199,57 @@ const (
 	DORDER_HOLD                           /**< hold position until given next order. */
 )
 
+//go:generate stringer --type DROID_SECONDARY_ORDER
+type DROID_SECONDARY_ORDER uint32
+
+const (
+	DSO_UNUSED                   DROID_SECONDARY_ORDER = iota
+	DSO_ATTACK_RANGE                                   /**< The attack range a given droid is allowed to fire: can be short, long or optimum (best chance to hit). Used with DSS_ARANGE_SHORT, DSS_ARANGE_LONG, DSS_ARANGE_OPTIMUM. */
+	DSO_REPAIR_LEVEL                                   /**< The repair level at which the droid falls back to repair: can be low, high or never. Used with DSS_REPLEV_LOW, DSS_REPLEV_HIGH, DSS_REPLEV_NEVER. */
+	DSO_ATTACK_LEVEL                                   /**< The attack level at which a droid can attack: can be always, attacked or never. Used with DSS_ALEV_ALWAYS, DSS_ALEV_ATTACKED, DSS_ALEV_NEVER. */
+	DSO_ASSIGN_PRODUCTION                              /**< Assigns a factory to a command droid - the state is given by the factory number. */
+	DSO_ASSIGN_CYBORG_PRODUCTION                       /**< Assigns a cyborg factory to a command droid - the state is given by the factory number. */
+	DSO_CLEAR_PRODUCTION                               /**< Removes the production from a command droid. */
+	DSO_RECYCLE                                        /**< If can be recycled or not. */
+	DSO_PATROL                                         /**< If it is assigned to patrol between current pos and next move target. */
+	DSO_HALTTYPE                                       /**< The type of halt. It can be hold, guard or pursue. Used with DSS_HALT_HOLD, DSS_HALT_GUARD,  DSS_HALT_PURSUE. */
+	DSO_RETURN_TO_LOC                                  /**< Generic secondary order to return to a location. Will depend on the secondary state DSS_RTL* to be specific. */
+	DSO_FIRE_DESIGNATOR                                /**< Assigns a droid to be a target designator. */
+	DSO_ASSIGN_VTOL_PRODUCTION                         /**< Assigns a vtol factory to a command droid - the state is given by the factory number. */
+	DSO_CIRCLE                                         /**< circling target position and engage. */
+	DSO_ACCEPT_RETREP                                  /**< Whether droids should retreat to this repair droid. */
+)
+
+//go:generate stringer --type DROID_SECONDARY_STATE
+type DROID_SECONDARY_STATE uint32
+
+const (
+	DSS_NONE           DROID_SECONDARY_STATE = 0x000000 /**< no state. */
+	DSS_ARANGE_SHORT   DROID_SECONDARY_STATE = 0x000001 /**< state referred to secondary order DSO_ATTACK_RANGE. Droid can only attack with short range. */
+	DSS_ARANGE_LONG    DROID_SECONDARY_STATE = 0x000002 /**< state referred to secondary order DSO_ATTACK_RANGE. Droid can only attack with long range. */
+	DSS_ARANGE_OPTIMUM DROID_SECONDARY_STATE = 0x000003 /**< state referred to secondary order DSO_ATTACK_RANGE. Droid can attacks with short or long range depending on what is the best hit chance. */
+	DSS_REPLEV_LOW     DROID_SECONDARY_STATE = 0x000004 /**< state referred to secondary order DSO_REPAIR_LEVEL. Droid falls back if its health decrease below 25%. */
+	DSS_REPLEV_HIGH    DROID_SECONDARY_STATE = 0x000008 /**< state referred to secondary order DSO_REPAIR_LEVEL. Droid falls back if its health decrease below 50%. */
+	DSS_REPLEV_NEVER   DROID_SECONDARY_STATE = 0x00000c /**< state referred to secondary order DSO_REPAIR_LEVEL. Droid never falls back. */
+	DSS_ALEV_ALWAYS    DROID_SECONDARY_STATE = 0x000010 /**< state referred to secondary order DSO_ATTACK_LEVEL. Droid attacks by its free will everytime. */
+	DSS_ALEV_ATTACKED  DROID_SECONDARY_STATE = 0x000020 /**< state referred to secondary order DSO_ATTACK_LEVEL. Droid attacks if it is attacked. */
+	DSS_ALEV_NEVER     DROID_SECONDARY_STATE = 0x000030 /**< state referred to secondary order DSO_ATTACK_LEVEL. Droid never attacks. */
+	DSS_HALT_HOLD      DROID_SECONDARY_STATE = 0x000040 /**< state referred to secondary order DSO_HALTTYPE. If halted, droid never moves by its free will. */
+	DSS_HALT_GUARD     DROID_SECONDARY_STATE = 0x000080 /**< state referred to secondary order DSO_HALTTYPE. If halted, droid moves on a given region by its free will. */
+	DSS_HALT_PURSUE    DROID_SECONDARY_STATE = 0x0000c0 /**< state referred to secondary order DSO_HALTTYPE. If halted, droid pursues the target by its free will. */
+	DSS_RECYCLE_SET    DROID_SECONDARY_STATE = 0x000100 /**< state referred to secondary order DSO_RECYCLE. If set, the droid can be recycled. */
+	DSS_ASSPROD_START  DROID_SECONDARY_STATE = 0x000200 /**< @todo this state is not called on the code. Consider removing it. */
+	DSS_ACCREP_SET     DROID_SECONDARY_STATE = 0x000400 /**< state referred to secondary order DSO_ACCEPT_RETREP. If set, units will retreat to this repair droid. */
+	DSS_ASSPROD_MID    DROID_SECONDARY_STATE = 0x002000 /**< @todo this state is not called on the code. Consider removing it. */
+	DSS_ASSPROD_END    DROID_SECONDARY_STATE = 0x040000 /**< @todo this state is not called on the code. Consider removing it. */
+	DSS_RTL_REPAIR     DROID_SECONDARY_STATE = 0x080000 /**< state set to send order DORDER_RTR to droid. */
+	DSS_RTL_BASE       DROID_SECONDARY_STATE = 0x100000 /**< state set to send order DORDER_RTB to droid. */
+	DSS_RTL_TRANSPORT  DROID_SECONDARY_STATE = 0x200000 /**< state set to send order DORDER_EMBARK to droid. */
+	DSS_PATROL_SET     DROID_SECONDARY_STATE = 0x400000 /**< state referred to secondary order DSO_PATROL. If set, the droid is set to patrol. */
+	DSS_CIRCLE_SET     DROID_SECONDARY_STATE = 0x400100 /**< state referred to secondary order DSO_CIRCLE. If set, the droid is set to circle. */
+	DSS_FIREDES_SET    DROID_SECONDARY_STATE = 0x800000 /**< state referred to secondary order DSO_FIRE_DESIGNATOR. If set, the droid is set as a fire designator. */
+)
+
 const (
 	STAT_BODY       = uint32(0x010000)
 	STAT_BRAIN      = uint32(0x020000)
