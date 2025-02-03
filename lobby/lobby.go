@@ -17,7 +17,8 @@ type LobbyRoom struct {
 	CurrentPlayers uint32
 	DWFlags        [4]uint32
 	SecHost        [2][40]byte
-	Extra          [159]byte
+	Extra          [157]byte
+	Port           uint16
 	MapName        [40]byte
 	HostName       [40]byte
 	Version        [64]byte
