@@ -39,16 +39,26 @@ func RefToComponent(ref uint32) (COMPONENT_TYPE, int) {
 		return COMP_BRAIN, int(int64(ref) - int64(STAT_BRAIN))
 	case STAT_PROPULSION:
 		return COMP_PROPULSION, int(int64(ref) - int64(STAT_PROPULSION))
-	case STAT_WEAPON:
-		return COMP_WEAPON, int(int64(ref) - int64(STAT_WEAPON))
 	case STAT_SENSOR:
 		return COMP_SENSOR, int(int64(ref) - int64(STAT_SENSOR))
 	case STAT_ECM:
 		return COMP_ECM, int(int64(ref) - int64(STAT_ECM))
-	case STAT_CONSTRUCT:
-		return COMP_CONSTRUCT, int(int64(ref) - int64(STAT_CONSTRUCT))
 	case STAT_REPAIR:
 		return COMP_REPAIRUNIT, int(int64(ref) - int64(STAT_REPAIR))
+	case STAT_WEAPON:
+		return COMP_WEAPON, int(int64(ref) - int64(STAT_WEAPON))
+	case STAT_RESEARCH:
+		return -1, int(int64(ref) - int64(STAT_RESEARCH))
+	case STAT_TEMPLATE:
+		return -1, int(int64(ref) - int64(STAT_TEMPLATE))
+	case STAT_STRUCTURE:
+		return -1, int(int64(ref) - int64(STAT_STRUCTURE))
+	case STAT_FUNCTION:
+		return -1, int(int64(ref) - int64(STAT_FUNCTION))
+	case STAT_CONSTRUCT:
+		return COMP_CONSTRUCT, int(int64(ref) - int64(STAT_CONSTRUCT))
+	case STAT_FEATURE:
+		return -1, int(int64(ref) - int64(STAT_FEATURE))
 	default:
 		return COMP_NUMCOMPONENTS, -1
 	}
