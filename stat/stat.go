@@ -1,5 +1,19 @@
 package stat
 
+type COMPONENT_TYPE int32
+
+const (
+	COMP_BODY COMPONENT_TYPE = iota
+	COMP_BRAIN
+	COMP_PROPULSION
+	COMP_REPAIRUNIT
+	COMP_ECM
+	COMP_SENSOR
+	COMP_CONSTRUCT
+	COMP_WEAPON
+	COMP_NUMCOMPONENTS
+)
+
 const (
 	STAT_BODY       = 0x010000
 	STAT_BRAIN      = 0x020000
@@ -14,4 +28,28 @@ const (
 	STAT_FUNCTION   = 0x0e0000
 	STAT_CONSTRUCT  = 0x0f0000
 	STAT_FEATURE    = 0x100000
+	STAT_MASK       = 0xffff0000
 )
+
+func RefToComponent(ref uint32) (COMPONENT_TYPE, int) {
+	switch ref & STAT_MASK {
+	case STAT_BODY:
+		return COMP_BODY, int(int64(ref) - int64(COMP_BODY))
+	case STAT_BRAIN:
+		return COMP_BRAIN, int(int64(ref) - int64(COMP_BRAIN))
+	case STAT_PROPULSION:
+		return COMP_PROPULSION, int(int64(ref) - int64(COMP_PROPULSION))
+	case STAT_WEAPON:
+		return COMP_WEAPON, int(int64(ref) - int64(COMP_WEAPON))
+	case STAT_SENSOR:
+		return COMP_SENSOR, int(int64(ref) - int64(COMP_SENSOR))
+	case STAT_ECM:
+		return COMP_ECM, int(int64(ref) - int64(COMP_ECM))
+	case STAT_CONSTRUCT:
+		return COMP_CONSTRUCT, int(int64(ref) - int64(COMP_CONSTRUCT))
+	case STAT_REPAIR:
+		return COMP_REPAIRUNIT, int(int64(ref) - int64(COMP_REPAIRUNIT))
+	default:
+		return COMP_NUMCOMPONENTS, int(int64(ref) - int64(COMP_NUMCOMPONENTS))
+	}
+}
