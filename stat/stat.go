@@ -34,22 +34,22 @@ const (
 func RefToComponent(ref uint32) (COMPONENT_TYPE, int) {
 	switch ref & STAT_MASK {
 	case STAT_BODY:
-		return COMP_BODY, int(int64(ref) - int64(COMP_BODY))
+		return COMP_BODY, int(int64(ref) - int64(STAT_BODY))
 	case STAT_BRAIN:
-		return COMP_BRAIN, int(int64(ref) - int64(COMP_BRAIN))
+		return COMP_BRAIN, int(int64(ref) - int64(STAT_BRAIN))
 	case STAT_PROPULSION:
-		return COMP_PROPULSION, int(int64(ref) - int64(COMP_PROPULSION))
+		return COMP_PROPULSION, int(int64(ref) - int64(STAT_PROPULSION))
 	case STAT_WEAPON:
-		return COMP_WEAPON, int(int64(ref) - int64(COMP_WEAPON))
+		return COMP_WEAPON, int(int64(ref) - int64(STAT_WEAPON))
 	case STAT_SENSOR:
-		return COMP_SENSOR, int(int64(ref) - int64(COMP_SENSOR))
+		return COMP_SENSOR, int(int64(ref) - int64(STAT_SENSOR))
 	case STAT_ECM:
-		return COMP_ECM, int(int64(ref) - int64(COMP_ECM))
+		return COMP_ECM, int(int64(ref) - int64(STAT_ECM))
 	case STAT_CONSTRUCT:
-		return COMP_CONSTRUCT, int(int64(ref) - int64(COMP_CONSTRUCT))
+		return COMP_CONSTRUCT, int(int64(ref) - int64(STAT_CONSTRUCT))
 	case STAT_REPAIR:
-		return COMP_REPAIRUNIT, int(int64(ref) - int64(COMP_REPAIRUNIT))
+		return COMP_REPAIRUNIT, int(int64(ref) - int64(STAT_REPAIR))
 	default:
-		return COMP_NUMCOMPONENTS, int(int64(ref) - int64(COMP_NUMCOMPONENTS))
+		return COMP_NUMCOMPONENTS, -1
 	}
 }
