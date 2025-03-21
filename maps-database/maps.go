@@ -189,3 +189,40 @@ func FetchMapTerrainWithClient(hash string, cl *http.Client) (image.Image, error
 	}
 	return png.Decode(br.Body)
 }
+
+type mapsPaginated struct {
+	Links struct {
+		Self string `json:"self"`
+		Next string `json:"next"`
+	} `json:"links"`
+	Maps []MapInfo `json:"maps"`
+}
+
+func FetchAllMapsWithClient(cl *http.Client) ([]MapInfo, error) {
+	if cl == nil {
+		cl = defaultClient
+	}
+	next := "https://maps.wz2100.net/api/v1/full.json"
+	ret := []MapInfo{}
+	for {
+		ir, err := cl.Get(next)
+		if err != nil {
+			return nil, err
+		}
+		var page mapsPaginated
+		err = json.NewDecoder(ir.Body).Decode(&page)
+		if err != nil {
+			return nil, err
+		}
+		ret = append(ret, page.Maps...)
+		if page.Links.Next == "" {
+			break
+		}
+		next = page.Links.Next
+	}
+	return ret, nil
+}
+
+func FetchAllMaps() ([]MapInfo, error) {
+	return FetchAllMapsWithClient(nil)
+}
